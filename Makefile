@@ -1,4 +1,4 @@
-.PHONY: help dev up down restart logs clean rebuild db-shell backend-shell migrate-create migrate-upgrade migrate-downgrade test-user test test-models test-cruds test-unit test-all
+.PHONY: help dev up down restart logs clean rebuild db-shell backend-shell migrate-create migrate-upgrade migrate-downgrade test-user test test-models test-unit test-coverage
 
 help:
 	@echo "NewsWatcher - Available Commands"
@@ -16,9 +16,8 @@ help:
 	@echo "  make rebuild          - Clean and rebuild everything"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test             - Run all tests (recommended)"
+	@echo "  make test             - Run all tests"
 	@echo "  make test-models      - Run model tests only"
-	@echo "  make test-cruds       - Run CRUD API tests only"
 	@echo "  make test-unit        - Run a specific test file (FILE=path/to/test.py)"
 	@echo "  make test-coverage    - Run tests with coverage report"
 	@echo ""
@@ -107,37 +106,14 @@ test-user:
 	@echo "Creating test user..."
 	docker-compose -f docker-compose.dev.yml exec backend python create_test_user.py
 
-# Testing commands  
+# Testing commands
 test:
-	@echo "Running all tests (each file in separate session)..."
-	@docker-compose -f docker-compose.dev.yml exec backend sh -c " \
-		pytest tests/test_models.py -v && \
-		pytest tests/test_news_tasks.py -v && \
-		pytest tests/test_sources.py -v && \
-		pytest tests/test_news_items.py -v && \
-		pytest tests/test_associations.py -v \
-	" && echo "✅ All tests passed!"
-
-test-parallel:
-	@echo "Running tests in parallel with xdist..."
-	docker-compose -f docker-compose.dev.yml exec backend pytest tests/ -n auto -v
-
-test-single:
-	@echo "Running all tests in single session (may have async issues)..."
+	@echo "Running all tests..."
 	docker-compose -f docker-compose.dev.yml exec backend pytest tests/ -v
 
 test-models:
 	@echo "Running model tests..."
 	docker-compose -f docker-compose.dev.yml exec backend pytest tests/test_models.py -v
-
-test-cruds:
-	@echo "Running CRUD API tests..."
-	@docker-compose -f docker-compose.dev.yml exec backend sh -c " \
-		pytest tests/test_news_tasks.py -v && \
-		pytest tests/test_sources.py -v && \
-		pytest tests/test_news_items.py -v && \
-		pytest tests/test_associations.py -v \
-	" && echo "✅ All CRUD tests passed!"
 
 test-unit:
 	@if [ -z "$(FILE)" ]; then \
