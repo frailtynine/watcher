@@ -9,23 +9,6 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-async def test_source(db_session_maker, test_user: User) -> Source:
-    """Create a test source."""
-    async with db_session_maker() as session:
-        source = Source(
-            user_id=test_user.id,
-            name="Test Source",
-            type=SourceType.RSS,
-            source="https://example.com/feed",
-            active=True,
-        )
-        session.add(source)
-        await session.commit()
-        await session.refresh(source)
-        return source
-
-
-@pytest.fixture
 async def test_news_item(db_session_maker, test_source: Source) -> NewsItem:
     """Create a test news item."""
     async with db_session_maker() as session:
@@ -97,3 +80,215 @@ async def test_list_news_items_unauthorized(client: AsyncClient):
     """Test that listing news items requires auth."""
     response = await client.get("/api/news-items/")
     assert response.status_code == 401
+
+
+async def test_create_news_item_success(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_source: "Source",
+):
+    """Test creating a news item with valid data."""
+    response = await client.post(
+        "/api/news-items/",
+        headers=auth_headers,
+        json={
+            "source_id": test_source.id,
+            "title": "New Article",
+            "content": "Article content here",
+            "url": "https://example.com/article",
+            "published_at": "2024-01-01T12:00:00",
+            "settings": {},
+            "raw_data": {},
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "New Article"
+    assert "id" in data
+
+
+async def test_create_news_item_missing_title(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_source: "Source",
+):
+    """Test creating news item fails without title."""
+    response = await client.post(
+        "/api/news-items/",
+        headers=auth_headers,
+        json={
+            "source_id": test_source.id,
+            "content": "Content",
+            "published_at": "2024-01-01T12:00:00",
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_create_news_item_empty_title(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_source: "Source",
+):
+    """Test creating news item fails with empty title."""
+    response = await client.post(
+        "/api/news-items/",
+        headers=auth_headers,
+        json={
+            "source_id": test_source.id,
+            "title": "",
+            "content": "Content",
+            "published_at": "2024-01-01T12:00:00",
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_create_news_item_missing_content(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_source: "Source",
+):
+    """Test creating news item fails without content."""
+    response = await client.post(
+        "/api/news-items/",
+        headers=auth_headers,
+        json={
+            "source_id": test_source.id,
+            "title": "Title",
+            "published_at": "2024-01-01T12:00:00",
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_create_news_item_invalid_source(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Test creating news item with non-existent source fails."""
+    response = await client.post(
+        "/api/news-items/",
+        headers=auth_headers,
+        json={
+            "source_id": 99999,
+            "title": "Title",
+            "content": "Content",
+            "published_at": "2024-01-01T12:00:00",
+        },
+    )
+    assert response.status_code == 404
+
+
+async def test_create_news_item_unauthorized(
+    client: AsyncClient,
+    test_source: "Source",
+):
+    """Test creating news item requires authentication."""
+    response = await client.post(
+        "/api/news-items/",
+        json={
+            "source_id": test_source.id,
+            "title": "Title",
+            "content": "Content",
+            "published_at": "2024-01-01T12:00:00",
+        },
+    )
+    assert response.status_code == 401
+
+
+async def test_list_news_items_with_filters(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_item: NewsItem,
+):
+    """Test listing news items with filters."""
+    response = await client.get(
+        f"/api/news-items/?source_id={test_news_item.source_id}&processed=false",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+
+
+async def test_list_news_items_invalid_source_filter(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Test listing with invalid source_id filter returns 404."""
+    response = await client.get(
+        "/api/news-items/?source_id=99999",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+async def test_update_news_item(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_item: NewsItem,
+):
+    """Test updating a news item."""
+    response = await client.patch(
+        f"/api/news-items/{test_news_item.id}",
+        headers=auth_headers,
+        json={
+            "processed": True,
+            "result": True,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["processed"] is True
+    assert data["result"] is True
+
+
+async def test_update_news_item_invalid_title(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_item: NewsItem,
+):
+    """Test updating news item with empty title fails."""
+    response = await client.patch(
+        f"/api/news-items/{test_news_item.id}",
+        headers=auth_headers,
+        json={"title": ""},
+    )
+    assert response.status_code == 422
+
+
+async def test_update_news_item_not_found(client: AsyncClient, auth_headers: dict):
+    """Test updating non-existent news item returns 404."""
+    response = await client.patch(
+        "/api/news-items/99999",
+        headers=auth_headers,
+        json={"processed": True},
+    )
+    assert response.status_code == 404
+
+
+async def test_delete_news_item(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_item: NewsItem,
+):
+    """Test deleting a news item."""
+    response = await client.delete(
+        f"/api/news-items/{test_news_item.id}",
+        headers=auth_headers,
+    )
+    assert response.status_code == 204
+
+    # Verify it's gone
+    response = await client.get(
+        f"/api/news-items/{test_news_item.id}",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+async def test_delete_news_item_not_found(client: AsyncClient, auth_headers: dict):
+    """Test deleting non-existent news item returns 404."""
+    response = await client.delete("/api/news-items/99999", headers=auth_headers)
+    assert response.status_code == 404

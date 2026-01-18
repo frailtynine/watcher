@@ -120,3 +120,41 @@ async def auth_headers(client: AsyncClient, test_user: User) -> dict:
     assert response.status_code == 200, f"Login failed: {response.text}"
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def test_source(db_session_maker, test_user: User):
+    """Create a test source."""
+    from app.models import Source
+    from app.models.source import SourceType
+
+    async with db_session_maker() as session:
+        source = Source(
+            user_id=test_user.id,
+            name="Test Source",
+            type=SourceType.RSS,
+            source="https://example.com/feed",
+            active=True,
+        )
+        session.add(source)
+        await session.commit()
+        await session.refresh(source)
+        return source
+
+
+@pytest.fixture
+async def test_news_task(db_session_maker, test_user: User):
+    """Create a test news task."""
+    from app.models import NewsTask
+
+    async with db_session_maker() as session:
+        task = NewsTask(
+            user_id=test_user.id,
+            name="Test Task",
+            prompt="Summarize news",
+            active=True,
+        )
+        session.add(task)
+        await session.commit()
+        await session.refresh(task)
+        return task
