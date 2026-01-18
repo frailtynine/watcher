@@ -139,7 +139,7 @@ async def test_get_news_task_unauthorized(client: AsyncClient, test_news_task: N
     assert response.status_code == 401
 
 
-@pytest.mark.skip(reason="Timezone issue in CRUD layer - existing bug")
+# @pytest.mark.skip(reason="FastCRUD passes timezone-aware datetime for onupdate fields with TIMESTAMP WITHOUT TIME ZONE")
 async def test_update_news_task(
     client: AsyncClient,
     auth_headers: dict,

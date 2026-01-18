@@ -20,7 +20,7 @@ async def create_news_item(
     source = await source_crud.get(db, id=news_item.source_id, user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     created = await news_item_crud.create(
         db,
         news_item,
@@ -49,13 +49,13 @@ async def list_news_items(
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
         filters["source_id"] = source_id
-    
+
     if processed is not None:
         filters["processed"] = processed
-    
+
     if result is not None:
         filters["result"] = result
-    
+
     items = await news_item_crud.get_multi(
         db,
         offset=skip,

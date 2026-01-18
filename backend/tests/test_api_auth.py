@@ -41,7 +41,6 @@ async def test_register_short_password(client: AsyncClient):
             "password": "123",
         },
     )
-    # Some validators allow short passwords, check that it's either rejected or accepted
     assert response.status_code in [201, 400, 422]
 
 
@@ -105,7 +104,11 @@ async def test_logout(client: AsyncClient, auth_headers: dict):
     assert response.status_code == 204
 
 
-async def test_get_current_user(client: AsyncClient, auth_headers: dict, test_user: User):
+async def test_get_current_user(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user: User,
+):
     """Test getting current user info."""
     response = await client.get(
         "/api/users/me",

@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from httpx import AsyncClient
 
 from app.models import User, Source, NewsItem
@@ -17,7 +17,7 @@ async def test_news_item(db_session_maker, test_source: Source) -> NewsItem:
             title="Test News Title",
             content="Test news content here.",
             url="https://example.com/news/1",
-            published_at=datetime.utcnow(),
+            published_at=datetime.now(timezone.utc).replace(tzinfo=None),
             processed=False,
             settings={},
             raw_data={},
@@ -258,7 +258,10 @@ async def test_update_news_item_invalid_title(
     assert response.status_code == 422
 
 
-async def test_update_news_item_not_found(client: AsyncClient, auth_headers: dict):
+async def test_update_news_item_not_found(
+    client: AsyncClient,
+    auth_headers: dict
+):
     """Test updating non-existent news item returns 404."""
     response = await client.patch(
         "/api/news-items/99999",
@@ -288,7 +291,13 @@ async def test_delete_news_item(
     assert response.status_code == 404
 
 
-async def test_delete_news_item_not_found(client: AsyncClient, auth_headers: dict):
+async def test_delete_news_item_not_found(
+    client: AsyncClient,
+    auth_headers: dict
+):
     """Test deleting non-existent news item returns 404."""
-    response = await client.delete("/api/news-items/99999", headers=auth_headers)
+    response = await client.delete(
+        "/api/news-items/99999",
+        headers=auth_headers
+    )
     assert response.status_code == 404
