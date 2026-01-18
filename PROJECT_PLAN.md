@@ -74,19 +74,29 @@
 
 **Test credentials available** - documented in FOUNDATION_COMPLETE.md
 
-### 🚧 IN PROGRESS / TODO
+### ✅ COMPLETED
 
-**Phase 4: Database Models** (Partially complete)
-- ✅ User model exists but needs settings JSON field added
-- ❌ NewsTask, Source, NewsItem, SourceNewsTask models need to be created
-- ❌ NewsItemSettings dataclass needs to be created
+**Phase 4: Database Models & Core Logic** ✅ COMPLETE
+- ✅ User model extended with settings JSON field
+- ✅ NewsTask model created with all fields and relationships
+- ✅ Source model created (RSS/Telegram types)
+- ✅ SourceNewsTask association table created
+- ✅ NewsItem model created with all fields
+- ✅ NewsItemSettings dataclass created
+- ✅ FastCRUD operations for all models
+- ✅ API endpoints for all CRUD operations
+- ✅ Comprehensive test suite (26 tests)
+- ✅ Alembic migration generated and applied
+
+**Detailed documentation**: See PHASE4_COMPLETE.md
+
+### 🚧 IN PROGRESS / TODO
 
 **Phase 5-9**: Not started
 - Producers (RSS, Telegram)
 - Consumers (Gemini AI)
 - APScheduler integration
 - Output interfaces
-- Testing suite
 - Frontend UI for news management
 
 ### 📦 Dependencies Status
@@ -156,21 +166,24 @@
   - [x] `/*` → frontend
 - [x] Create .env.example files
 
-### Phase 4: Database Models & Core Logic ⚠️ PARTIAL
+### Phase 4: Database Models & Core Logic ✅ COMPLETE
 - [x] Create User model (extended from fastapi-users)
-  - [ ] Add settings field (JSON) for API keys and Telegram data
-- [ ] Create NewsTask model
-  - [ ] Fields: user_id, name, prompt, active, created_at, updated_at
-  - [ ] Many-to-many relationship with Source (via association table)
-- [ ] Create Source model
-  - [ ] Fields: user_id, name, type (RSS/Telegram), source (URL/channel_id), active, last_fetched_at, created_at
-  - [ ] Many-to-many relationship with NewsTask
-- [ ] Create SourceNewsTask association table
-  - [ ] Fields: source_id, news_task_id (composite primary key)
-- [ ] Create NewsItem model
-  - [ ] Fields: source_id, title, content, url, external_id, published_at, fetched_at, processed (boolean), result (boolean/nullable), processed_at (nullable), ai_response (JSON/nullable), settings (JSON), raw_data (JSON)
-  - [ ] Settings dataclass for type safety
+  - [x] Add settings field (JSON) for API keys and Telegram data
+- [x] Create NewsTask model
+  - [x] Fields: user_id, name, prompt, active, created_at, updated_at
+  - [x] Many-to-many relationship with Source (via association table)
+- [x] Create Source model
+  - [x] Fields: user_id, name, type (RSS/Telegram), source (URL/channel_id), active, last_fetched_at, created_at
+  - [x] Many-to-many relationship with NewsTask
+- [x] Create SourceNewsTask association table
+  - [x] Fields: source_id, news_task_id (composite primary key)
+- [x] Create NewsItem model
+  - [x] Fields: source_id, title, content, url, external_id, published_at, fetched_at, processed (boolean), result (boolean/nullable), processed_at (nullable), ai_response (JSON/nullable), settings (JSON), raw_data (JSON)
+  - [x] Settings dataclass for type safety
 - [x] Set up Alembic for migrations
+- [x] FastCRUD operations for all models
+- [x] API endpoints with authentication
+- [x] Comprehensive test suite (26 tests)
 
 ### Phase 5: News Producers (Retrieval)
 - [ ] Create producer architecture
