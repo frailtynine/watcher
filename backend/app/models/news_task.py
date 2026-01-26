@@ -11,7 +11,7 @@ def utcnow_naive():
 
 class NewsTask(Base):
     __tablename__ = "news_task"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

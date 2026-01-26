@@ -2,8 +2,7 @@ import pytest
 from datetime import datetime, timezone
 from httpx import AsyncClient
 
-from app.models import User, Source, NewsItem
-from app.models.source import SourceType
+from app.models import Source, NewsItem
 
 pytestmark = pytest.mark.anyio
 
@@ -204,7 +203,7 @@ async def test_list_news_items_with_filters(
 ):
     """Test listing news items with filters."""
     response = await client.get(
-        f"/api/news-items/?source_id={test_news_item.source_id}&processed=false",
+        f"/api/news-items/?source_id={test_news_item.source_id}&processed=false", # noqa
         headers=auth_headers,
     )
     assert response.status_code == 200

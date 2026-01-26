@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from app.db import get_async_session
 from app.crud import news_task_crud
 from app.schemas import NewsTaskCreate, NewsTaskRead, NewsTaskUpdate
 from app.api.auth import current_active_user
-from app.models import User, NewsTask
+from app.models import User, NewsTask, SourceNewsTask
 
 router = APIRouter()
 
@@ -37,7 +38,7 @@ async def list_news_tasks(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
-    """List all news tasks for the current user"""
+    """List all news tasks for the current user with sources count"""
     result = await news_task_crud.get_multi(
         db,
         offset=skip,
@@ -46,7 +47,28 @@ async def list_news_tasks(
         schema_to_select=NewsTaskRead,
         return_as_model=True
     )
-    return result["data"]
+    
+    tasks = result["data"]
+    
+    # Get sources count for each task
+    task_ids = [task.id for task in tasks]
+    if task_ids:
+        stmt = (
+            select(
+                SourceNewsTask.news_task_id,
+                func.count(SourceNewsTask.source_id).label('count')
+            )
+            .where(SourceNewsTask.news_task_id.in_(task_ids))
+            .group_by(SourceNewsTask.news_task_id)
+        )
+        result_counts = await db.execute(stmt)
+        counts_dict = {row.news_task_id: row.count
+                       for row in result_counts}
+        
+        for task in tasks:
+            task.sources_count = counts_dict.get(task.id, 0)
+    
+    return tasks
 
 
 @router.get("/{task_id}", response_model=NewsTaskRead)

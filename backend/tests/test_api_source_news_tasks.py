@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient
-from app.models import User, Source, NewsTask
+from app.models import Source, NewsTask
 
 pytestmark = pytest.mark.anyio
 

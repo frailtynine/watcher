@@ -1,18 +1,16 @@
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
+
 from sqlalchemy import (
     String, Text, Boolean, Integer,
     ForeignKey, DateTime, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON
+
 from app.db import Base
-
-
-def utcnow_naive():
-    """Return current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from app.models.utils import utcnow_naive
 
 
 @dataclass
@@ -56,7 +54,7 @@ class NewsItem(Base):
     raw_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     # Relationships
-    source: Mapped["Source"] = relationship(
+    source: Mapped["Source"] = relationship(  # type: ignore # noqa: F821
         "Source", back_populates="news_items"
     )
 
