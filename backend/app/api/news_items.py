@@ -20,7 +20,7 @@ async def create_news_item(
     source = await source_crud.get(db, id=news_item.source_id, user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     created = await news_item_crud.create(
         db,
         news_item,
@@ -49,13 +49,13 @@ async def list_news_items(
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
         filters["source_id"] = source_id
-    
+
     if processed is not None:
         filters["processed"] = processed
-    
+
     if result is not None:
         filters["result"] = result
-    
+
     items = await news_item_crud.get_multi(
         db,
         offset=skip,
@@ -74,15 +74,19 @@ async def get_news_item(
     user: User = Depends(current_active_user)
 ):
     """Get a specific news item"""
-    item = await news_item_crud.get(db, id=item_id)
+    item = await news_item_crud.get(
+        db,
+        id=item_id,
+        schema_to_select=NewsItemRead,
+        return_as_model=True,
+    )
     if not item:
         raise HTTPException(status_code=404, detail="News item not found")
-    
-    # Verify source ownership
+
     source = await source_crud.get(db, id=item.source_id, user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="News item not found")
-    
+
     return item
 
 
@@ -94,15 +98,16 @@ async def update_news_item(
     user: User = Depends(current_active_user)
 ):
     """Update a news item"""
-    # Get item and verify ownership
     item = await news_item_crud.get(db, id=item_id)
     if not item:
         raise HTTPException(status_code=404, detail="News item not found")
-    
-    source = await source_crud.get(db, id=item.source_id, user_id=user.id)
+
+    source = await source_crud.get(
+        db, id=item["source_id"], user_id=user.id
+    )
     if not source:
         raise HTTPException(status_code=404, detail="News item not found")
-    
+
     updated = await news_item_crud.update(
         db,
         news_item_update,
@@ -120,14 +125,15 @@ async def delete_news_item(
     user: User = Depends(current_active_user)
 ):
     """Delete a news item"""
-    # Get item and verify ownership
     item = await news_item_crud.get(db, id=item_id)
     if not item:
         raise HTTPException(status_code=404, detail="News item not found")
-    
-    source = await source_crud.get(db, id=item.source_id, user_id=user.id)
+
+    source = await source_crud.get(
+        db, id=item["source_id"], user_id=user.id
+    )
     if not source:
         raise HTTPException(status_code=404, detail="News item not found")
-    
+
     await news_item_crud.delete(db, id=item_id)
     return None

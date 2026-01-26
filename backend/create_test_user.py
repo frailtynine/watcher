@@ -3,7 +3,6 @@
 import asyncio
 from app.db import get_async_session
 from app.models import User
-from app.core.users import get_user_manager
 from app.schemas import UserCreate
 
 
