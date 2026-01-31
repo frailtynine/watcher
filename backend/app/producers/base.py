@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 import logging
+import asyncio
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,6 +13,8 @@ from sqlalchemy import select
 
 from app.models.source import Source
 from app.models.news_item import NewsItem
+from app.models.news_task import NewsTask
+from app.models.source_news_task import SourceNewsTask
 from app.db import get_async_session
 
 logger = logging.getLogger(__name__)
@@ -169,9 +172,9 @@ class BaseProducer(ABC):
         published = published_at or datetime.now(timezone.utc)
         if published.tzinfo is not None:
             published = published.replace(tzinfo=None)
-        
+
         fetched = datetime.now(timezone.utc).replace(tzinfo=None)
-        
+
         return NewsItem(
             source_id=source_id,
             title=title,
@@ -184,3 +187,91 @@ class BaseProducer(ABC):
             settings=settings or {},
             raw_data=raw_data or {},
         )
+
+    async def get_sources(
+        self,
+        source_type: str,
+        session: AsyncSession
+    ) -> List[Source]:
+        stmt = (
+            select(Source)
+            .join(SourceNewsTask, SourceNewsTask.source_id == Source.id)
+            .join(NewsTask, SourceNewsTask.news_task_id == NewsTask.id)
+            .where(
+                Source.type == source_type,
+                Source.active.is_(True),
+                NewsTask.active.is_(True)
+            )
+            .distinct()
+        )
+        result = await session.execute(stmt)
+        return result.scalars().all()
+
+    async def run_job(
+        self,
+        source_type: str,
+        concurrency_limit: int = 5
+    ) -> None:
+        """Run producer job for all active sources of given type.
+
+        Args:
+            source_type: Type of sources to process
+            concurrency_limit: Maximum concurrent source processing
+
+        """
+        self.logger.info(f"Starting {source_type} producer job")
+
+        # Fetch active sources
+        sources: list[Source] = []
+        async for session in get_async_session():
+            try:
+                sources = await self.get_sources(
+                    source_type=source_type,
+                    session=session
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to fetch sources: {e}", exc_info=True
+                )
+                await session.rollback()
+            finally:
+                break
+
+        if not sources:
+            self.logger.info(f"No active {source_type} sources to process")
+            return
+
+        self.logger.info(f"Processing {len(sources)} {source_type} sources")
+
+        # Process sources concurrently
+        semaphore = asyncio.Semaphore(concurrency_limit)
+        results = await asyncio.gather(
+            *[self.process_source_safe(s, semaphore) for s in sources]
+        )
+        total_items = sum(results)
+        self.logger.info(
+            f"{source_type} job complete: {len(sources)} sources, "
+            f"{total_items} new items"
+        )
+
+    async def process_source_safe(
+        self,
+        source: Source,
+        semaphore: asyncio.Semaphore
+    ) -> int:
+        """Process source with semaphore and error handling.
+
+        Args:
+            source: Source to process
+            semaphore: Asyncio semaphore for concurrency control
+
+        """
+        async with semaphore:
+            try:
+                return await self.process_source(source)
+            except Exception as e:
+                self.logger.error(
+                    f"Error processing {source.name}: {e}",
+                    exc_info=True
+                )
+                return 0

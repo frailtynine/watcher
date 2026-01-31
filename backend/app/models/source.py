@@ -41,12 +41,12 @@ class Source(Base):
     )
 
     # Relationships
-    news_tasks: Mapped[list["NewsTask"]] = relationship(
+    news_tasks: Mapped[list["NewsTask"]] = relationship(  # type: ignore # noqa: F821
         "NewsTask",
         secondary="source_news_task",
         back_populates="sources"
     )
-    news_items: Mapped[list["NewsItem"]] = relationship(
+    news_items: Mapped[list["NewsItem"]] = relationship(  # type: ignore # noqa: F821
         "NewsItem",
         back_populates="source"
     )

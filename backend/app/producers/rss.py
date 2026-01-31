@@ -196,47 +196,7 @@ async def rss_producer_job():
     producer = RSSProducer()
     producer.logger.info("Starting RSS producer job")
 
-    # Fetch active RSS sources
-    async for session in get_async_session():
-        try:
-            stmt = select(Source).where(
-                Source.type == SourceType.RSS,
-                Source.active.is_(True)
-            )
-            result = await session.execute(stmt)
-            sources = list(result.scalars().all())
-            break
-        except Exception as e:
-            producer.logger.error(
-                f"Failed to fetch sources: {e}", exc_info=True
-            )
-            await session.rollback()
-            return
-
-    if not sources:
-        producer.logger.info("No active RSS sources to process")
-        return
-
-    producer.logger.info(f"Processing {len(sources)} RSS sources")
-
-    # Process sources concurrently with limit
-    semaphore = asyncio.Semaphore(settings.RSS_FETCH_CONCURRENCY)
-
-    async def process_source_safe(source: Source):
-        """Process source with semaphore and error handling."""
-        async with semaphore:
-            try:
-                return await producer.process_source(source)
-            except Exception as e:
-                producer.logger.error(
-                    f"Error processing {source.name}: {e}",
-                    exc_info=True
-                )
-                return 0
-
-    # Execute and gather results
-    results = await asyncio.gather(*[process_source_safe(s) for s in sources])
-    total_items = sum(results)
-    producer.logger.info(
-        f"RSS job complete: {len(sources)} sources, {total_items} new items"
+    await producer.run_job(
+        source_type=SourceType.RSS,
+        concurrency_limit=settings.RSS_FETCH_CONCURRENCY
     )

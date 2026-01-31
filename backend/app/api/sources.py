@@ -27,6 +27,36 @@ async def create_source(
     return created
 
 
+@router.get("/search", response_model=list[SourceRead])
+async def search_sources(
+    q: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user)
+):
+    """Search sources by name for the current user"""
+    from sqlalchemy import select, or_
+    from app.models import Source
+    
+    stmt = (
+        select(Source)
+        .where(Source.user_id == user.id)
+        .where(
+            or_(
+                Source.name.ilike(f"%{q}%"),
+                Source.source.ilike(f"%{q}%")
+            )
+        )
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    result = await db.execute(stmt)
+    sources = result.scalars().all()
+    return sources
+
+
 @router.get("/", response_model=list[SourceRead])
 async def list_sources(
     skip: int = 0,
