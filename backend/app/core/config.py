@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # RSS Producer Job Settings
     RSS_FETCH_INTERVAL_MINUTES: int = 1
-    RSS_FETCH_CONCURRENCY: int = 1000
+    RSS_FETCH_CONCURRENCY: int = 50
 
 
 settings = Settings()

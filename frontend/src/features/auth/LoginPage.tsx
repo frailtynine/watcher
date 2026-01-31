@@ -11,7 +11,9 @@ import {
   Text,
   useToast,
   FormErrorMessage,
+  Link as ChakraLink,
 } from '@chakra-ui/react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLoginMutation } from '@/services/api';
 
 export const LoginPage = () => {
@@ -19,18 +21,21 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [login, { isLoading }] = useLoginMutation();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      await login({ username: email, password }).unwrap();
+      const result = await login({ username: email, password }).unwrap();
+      localStorage.setItem('access_token', result.access_token);
       toast({
         title: 'Login successful',
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
+      navigate('/tasks');
     } catch (error: any) {
       toast({
         title: 'Login failed',
@@ -88,6 +93,13 @@ export const LoginPage = () => {
               >
                 Sign In
               </Button>
+
+              <Text textAlign="center" fontSize="sm">
+                Don't have an account?{' '}
+                <ChakraLink as={Link} to="/signup" color="blue.500">
+                  Sign Up
+                </ChakraLink>
+              </Text>
             </VStack>
           </form>
         </VStack>

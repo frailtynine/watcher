@@ -1,12 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.db import Base
-
-
-def utcnow_naive():
-    """Return current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+from app.models.utils import utcnow_naive
 
 
 class NewsTask(Base):
