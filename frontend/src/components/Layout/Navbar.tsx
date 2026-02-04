@@ -10,9 +10,10 @@ import {
   Avatar,
   HStack,
   Text,
+  Badge,
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   useGetCurrentUserQuery,
   useLogoutMutation,
@@ -44,9 +45,33 @@ export const Navbar = () => {
         maxW="container.xl"
         mx="auto"
       >
-        <Heading size="md" color="blue.600">
-          NewsWatcher
-        </Heading>
+        <HStack spacing={8}>
+          <Heading size="md" color="blue.600">
+            NewsWatcher
+          </Heading>
+
+          <HStack spacing={4}>
+            <Button
+              as={RouterLink}
+              to="/tasks"
+              variant="ghost"
+              size="sm"
+            >
+              News Tasks
+            </Button>
+            <Button
+              as={RouterLink}
+              to="/news-items"
+              variant="ghost"
+              size="sm"
+            >
+              <Badge colorScheme="orange" mr={2}>
+                DEBUG
+              </Badge>
+              News Items
+            </Button>
+          </HStack>
+        </HStack>
 
         <HStack spacing={4}>
           <Menu>

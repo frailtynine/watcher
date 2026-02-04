@@ -10,6 +10,7 @@ import { LoginPage } from './features/auth/LoginPage';
 import { SignupPage } from './features/auth/SignupPage';
 import { DashboardLayout } from './components/Layout/DashboardLayout';
 import { NewsTasks } from './features/newsTasks/NewsTasks';
+import NewsItemsPage from './features/newsItems/NewsItemsPage';
 import { PrivateRoute } from './components/PrivateRoute';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
               }
             >
               <Route path="tasks" element={<NewsTasks />} />
+              <Route path="news-items" element={<NewsItemsPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

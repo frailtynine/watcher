@@ -50,3 +50,21 @@ export interface SourceNewsTaskAssociation {
   news_task_id: number;
   created_at?: string;
 }
+
+export interface NewsItem {
+  id: number;
+  source_id: number;
+  title: string | null;
+  content: string | null;
+  url: string | null;
+  external_id: string | null;
+  published_at: string | null;
+  processed: boolean;
+  result: boolean | null;
+  processed_at: string | null;
+  ai_response: any | null;
+  settings: any | null;
+  raw_data: any | null;
+  created_at: string;
+  updated_at: string;
+}
