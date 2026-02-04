@@ -7,6 +7,7 @@ import type {
   SourceCreate,
   SourceUpdate,
   SourceNewsTaskAssociation,
+  NewsItem,
 } from '../types';
 
 export interface LoginRequest {
@@ -44,7 +45,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations'],
+  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations', 'NewsItems'],
   endpoints: (builder) => ({
     register: builder.mutation<User, RegisterRequest>({
       query: (credentials) => ({
@@ -187,6 +188,28 @@ export const api = createApi({
       }),
       invalidatesTags: ['Associations'],
     }),
+
+    // News Items
+    getNewsItems: builder.query<
+      NewsItem[],
+      {
+        skip?: number;
+        limit?: number;
+        source_id?: number;
+        processed?: boolean;
+        result?: boolean;
+      }
+    >({
+      query: (params) => ({
+        url: '/news-items',
+        params,
+      }),
+      providesTags: ['NewsItems'],
+    }),
+    getNewsItem: builder.query<NewsItem, string>({
+      query: (id) => `/news-items/${id}`,
+      providesTags: (result, error, id) => [{ type: 'NewsItems', id }],
+    }),
   }),
 });
 
@@ -210,4 +233,6 @@ export const {
   useGetTaskSourcesQuery,
   useAssociateSourceWithTaskMutation,
   useDisassociateSourceFromTaskMutation,
+  useGetNewsItemsQuery,
+  useGetNewsItemQuery,
 } = api;

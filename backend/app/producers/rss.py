@@ -2,15 +2,11 @@
 
 from datetime import datetime, timezone
 from typing import List, Optional
-import asyncio
 import feedparser
 from email.utils import parsedate_to_datetime
 
-from sqlalchemy import select
-
 from app.models.source import Source, SourceType
 from app.models.news_item import NewsItem
-from app.db import get_async_session
 from app.core import settings
 from .base import BaseProducer
 

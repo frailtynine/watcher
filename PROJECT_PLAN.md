@@ -6,6 +6,7 @@
 - **Phase 1-3**: Authentication, Docker infrastructure, Frontend basics
 - **Phase 4**: Database models (User, NewsTask, Source, NewsItem, SourceNewsTask)
 - **Phase 5**: RSS Producer with APScheduler integration
+  - [x] Testing/Debug News Items Viewer (frontend-only, easily detachable)
 
 ### Current Implementation
 See **IMPLEMENTATION_GUIDE.md** for detailed architecture and logic explanation.
@@ -50,8 +51,8 @@ See **IMPLEMENTATION_GUIDE.md** for detailed architecture and logic explanation.
 - [x] NewsTasks CRUD
 - [x] Sources CRUD
 - [x] Source-Task associations
-- [ ] NewsItems viewer
-- [ ] Filtered results page
+- [x] NewsItems debug viewer (testing feature)
+- [ ] Filtered results page (production feature)
 - [ ] User settings page (API keys)
 
 ## Tech Stack
