@@ -17,7 +17,6 @@ async def test_news_item(db_session_maker, test_source: Source) -> NewsItem:
             content="Test news content here.",
             url="https://example.com/news/1",
             published_at=datetime.now(timezone.utc).replace(tzinfo=None),
-            processed=False,
             settings={},
             raw_data={},
         )
@@ -203,7 +202,7 @@ async def test_list_news_items_with_filters(
 ):
     """Test listing news items with filters."""
     response = await client.get(
-        f"/api/news-items/?source_id={test_news_item.source_id}&processed=false", # noqa
+        f"/api/news-items/?source_id={test_news_item.source_id}",
         headers=auth_headers,
     )
     assert response.status_code == 200
@@ -233,14 +232,12 @@ async def test_update_news_item(
         f"/api/news-items/{test_news_item.id}",
         headers=auth_headers,
         json={
-            "processed": True,
-            "result": True,
+            "title": "Updated Title",
         },
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["processed"] is True
-    assert data["result"] is True
+    assert data["title"] == "Updated Title"
 
 
 async def test_update_news_item_invalid_title(

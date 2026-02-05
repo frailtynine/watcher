@@ -9,7 +9,6 @@ import {
   Tr,
   Th,
   Td,
-  Badge,
   Button,
   HStack,
   Text,
@@ -30,8 +29,6 @@ export default function NewsItemsPage() {
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
   const [sourceId, setSourceId] = useState<number | undefined>(undefined);
-  const [processed, setProcessed] = useState<boolean | undefined>(undefined);
-  const [result, setResult] = useState<boolean | undefined>(undefined);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -39,8 +36,6 @@ export default function NewsItemsPage() {
     skip,
     limit,
     source_id: sourceId,
-    processed,
-    result,
   });
 
   const { data: sources } = useGetSourcesQuery();
@@ -105,48 +100,6 @@ export default function NewsItemsPage() {
               ))}
             </Select>
           </Box>
-
-          <Box>
-            <Text fontSize="sm" mb={1} fontWeight="medium">
-              Processed
-            </Text>
-            <Select
-              placeholder="All"
-              value={processed === undefined ? '' : processed.toString()}
-              onChange={(e) => {
-                if (e.target.value === '') {
-                  setProcessed(undefined);
-                } else {
-                  setProcessed(e.target.value === 'true');
-                }
-              }}
-              width="150px"
-            >
-              <option value="true">Processed</option>
-              <option value="false">Unprocessed</option>
-            </Select>
-          </Box>
-
-          <Box>
-            <Text fontSize="sm" mb={1} fontWeight="medium">
-              Result
-            </Text>
-            <Select
-              placeholder="All"
-              value={result === undefined ? '' : result.toString()}
-              onChange={(e) => {
-                if (e.target.value === '') {
-                  setResult(undefined);
-                } else {
-                  setResult(e.target.value === 'true');
-                }
-              }}
-              width="150px"
-            >
-              <option value="true">True</option>
-              <option value="false">False</option>
-            </Select>
-          </Box>
         </HStack>
 
         {isLoading && (
@@ -172,8 +125,6 @@ export default function NewsItemsPage() {
                     <Th>Title</Th>
                     <Th>Source</Th>
                     <Th>Published</Th>
-                    <Th>Processed</Th>
-                    <Th>Result</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -190,22 +141,6 @@ export default function NewsItemsPage() {
                       </Td>
                       <Td>{getSourceName(item.source_id)}</Td>
                       <Td>{formatDate(item.published_at)}</Td>
-                      <Td>
-                        {item.processed ? (
-                          <Badge colorScheme="green">Yes</Badge>
-                        ) : (
-                          <Badge colorScheme="gray">No</Badge>
-                        )}
-                      </Td>
-                      <Td>
-                        {item.result === null ? (
-                          <Badge>-</Badge>
-                        ) : item.result ? (
-                          <Badge colorScheme="green">✓</Badge>
-                        ) : (
-                          <Badge colorScheme="red">✗</Badge>
-                        )}
-                      </Td>
                     </Tr>
                   ))}
                 </Tbody>

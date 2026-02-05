@@ -31,3 +31,8 @@ class NewsTask(Base):
         secondary="source_news_task",
         back_populates="news_tasks"
     )
+    item_results: Mapped[list["NewsItemNewsTask"]] = relationship(  # type: ignore # noqa: F821
+        "NewsItemNewsTask",
+        back_populates="news_task",
+        cascade="all, delete-orphan"
+    )

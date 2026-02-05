@@ -27,10 +27,17 @@ NewsWatcher is a news monitoring service built with FastAPI (async) backend and 
 
 **NewsItem** (`app/models/news_item.py`)
 - Individual news articles/messages
-- Fields: `title`, `content`, `url`, `external_id`, `published_at`
-- Processing status: `processed` (bool), `result` (bool/null), `processed_at`, `ai_response` (JSON)
+- Fields: `title`, `content`, `url`, `external_id`, `published_at`, `fetched_at`
 - `settings` (JSON) and `raw_data` (JSON) for extensibility
 - Unique constraints: (`source_id`, `url`) and (`source_id`, `external_id`)
+- Relationships: Links to `NewsItemNewsTask` for processing results
+
+**NewsItemNewsTask** (`app/models/news_item_news_task.py`)
+- Association table between NewsItem and NewsTask with processing results
+- Composite primary key: (`news_item_id`, `news_task_id`)
+- Processing status: `processed` (bool), `result` (bool/null), `processed_at`, `ai_response` (JSON)
+- Allows one news item to be processed by multiple tasks
+- Each task has its own processing result for the same news item
 
 **SourceNewsTask** (`app/models/source_news_task.py`)
 - Association table linking Sources to NewsTasks
@@ -150,13 +157,102 @@ All endpoints require authentication (JWT token in Authorization header).
 4. **Errors are logged** but don't stop processing other sources
 
 ### Processing Flow (Not Yet Implemented)
-1. Consumer job queries NewsItems where `processed=False`
+1. Consumer job queries NewsItems that haven't been processed yet
 2. For each NewsItem:
    - Get associated NewsTasks via Source → SourceNewsTask
    - Call Gemini API for each task's prompt
-   - Aggregate results (if ANY task returns true, set `result=True`)
-   - Store AI responses in `ai_response` JSON field
-   - Mark `processed=True`, set `processed_at`
+   - Create NewsItemNewsTask record for each task with:
+     * `processed=True`
+     * `result` (true/false based on AI evaluation)
+     * `processed_at` (timestamp)
+     * `ai_response` (full AI response for debugging)
+3. Each news item can have multiple processing results (one per task)
+4. User can view which tasks flagged which items as relevant
+
+**Example Consumer Implementation:**
+
+```python
+async def ai_consumer_job(db: AsyncSession):
+    """Process unprocessed news items with AI"""
+    # Get all news items that need processing
+    news_items = await get_unprocessed_news_items(db)
+    
+    for news_item in news_items:
+        # Get all tasks associated with this item's source
+        tasks = await get_tasks_for_source(db, news_item.source_id)
+        
+        for task in tasks:
+            # Check if this item-task combination was already processed
+            existing = await news_item_news_task_crud.get(
+                db,
+                news_item_id=news_item.id,
+                news_task_id=task.id
+            )
+            
+            if existing and existing.get('processed'):
+                continue  # Skip already processed
+            
+            try:
+                # Call Gemini API with task prompt and news content
+                ai_result = await gemini_api.process(
+                    content=news_item.content,
+                    prompt=task.prompt
+                )
+                
+                # Save or update processing result
+                result_data = NewsItemNewsTaskUpdate(
+                    processed=True,
+                    result=ai_result.is_relevant,
+                    ai_response=ai_result.full_response,
+                    processed_at=datetime.utcnow()
+                )
+                
+                if existing:
+                    await news_item_news_task_crud.update(
+                        db,
+                        result_data,
+                        news_item_id=news_item.id,
+                        news_task_id=task.id
+                    )
+                else:
+                    await news_item_news_task_crud.create(
+                        db,
+                        NewsItemNewsTaskCreate(
+                            news_item_id=news_item.id,
+                            news_task_id=task.id,
+                            **result_data.dict()
+                        )
+                    )
+                
+                await db.commit()
+                
+            except Exception as e:
+                logger.error(f"Error processing item {news_item.id} with task {task.id}: {e}")
+                await db.rollback()
+                continue  # Continue with next task
+
+
+async def get_unprocessed_news_items(db: AsyncSession) -> list[NewsItem]:
+    """Get news items that haven't been processed by all their tasks yet"""
+    # This would use a more complex query to find items that either:
+    # 1. Have no NewsItemNewsTask records yet
+    # 2. Have some tasks that haven't processed them yet
+    # Implementation depends on specific requirements
+    pass
+
+
+async def get_tasks_for_source(db: AsyncSession, source_id: int) -> list[NewsTask]:
+    """Get all active tasks associated with a source"""
+    # Query through SourceNewsTask association
+    pass
+```
+
+**Key Points:**
+- Each news item is processed independently by each associated task
+- Results are stored per item-task combination
+- Failed processing for one task doesn't affect others
+- Easy to reprocess specific item-task combinations
+- AI responses are preserved for debugging and analysis
 
 ### User Interaction Flow
 1. User logs in → JWT token stored
@@ -169,12 +265,14 @@ All endpoints require authentication (JWT token in Authorization header).
 
 ## Key Design Decisions
 
-**1. Combined Processing Model**
-- No separate ProcessedNews table
-- NewsItem has `processed`, `result`, `ai_response` fields
-- Simplifies queries, reduces joins
+**1. Many-to-Many Processing Model with Results**
+- NewsItem ↔ NewsTask relationship via NewsItemNewsTask table
+- Each combination stores its own processing result
+- Allows one news item to be evaluated by multiple tasks independently
+- User can see which specific tasks flagged an item as relevant
+- Simplifies future analytics (e.g., "which task has highest hit rate")
 
-**2. Many-to-Many Source-Task Relationship**
+**2. Separation of Concerns**
 - Allows one source to be filtered by multiple tasks
 - Consumer only processes NewsItems from sources with linked tasks
 

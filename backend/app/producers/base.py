@@ -183,7 +183,6 @@ class BaseProducer(ABC):
             external_id=external_id,
             published_at=published,
             fetched_at=fetched,
-            processed=False,
             settings=settings or {},
             raw_data=raw_data or {},
         )

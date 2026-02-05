@@ -89,7 +89,6 @@ async def test_rss_producer_fetch_success(
     assert items[0].url == "https://example.com/article1"
     assert items[0].external_id == "article1"
     assert items[0].source_id == rss_source.id
-    assert items[0].processed is False
 
     # Check raw_data structure (minimal fields)
     assert "title" in items[0].raw_data

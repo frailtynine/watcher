@@ -3,6 +3,11 @@ from .news_task import NewsTaskRead, NewsTaskCreate, NewsTaskUpdate
 from .source import SourceRead, SourceCreate, SourceUpdate
 from .source_news_task import SourceNewsTaskRead, SourceNewsTaskCreate
 from .news_item import NewsItemRead, NewsItemCreate, NewsItemUpdate
+from .news_item_news_task import (
+    NewsItemNewsTaskRead,
+    NewsItemNewsTaskCreate,
+    NewsItemNewsTaskUpdate
+)
 
 __all__ = [
     "UserRead", "UserCreate", "UserUpdate",
@@ -10,4 +15,5 @@ __all__ = [
     "SourceRead", "SourceCreate", "SourceUpdate",
     "SourceNewsTaskRead", "SourceNewsTaskCreate",
     "NewsItemRead", "NewsItemCreate", "NewsItemUpdate",
+    "NewsItemNewsTaskRead", "NewsItemNewsTaskCreate", "NewsItemNewsTaskUpdate",
 ]

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_async_session
-from app.crud import news_item_crud, source_crud
-from app.schemas import NewsItemCreate, NewsItemRead, NewsItemUpdate
+from app.crud import news_item_crud, source_crud, news_item_news_task_crud
+from app.schemas import NewsItemCreate, NewsItemRead, NewsItemUpdate, NewsItemNewsTaskRead
 from app.api.auth import current_active_user
 from app.models import User
 
@@ -35,8 +35,6 @@ async def list_news_items(
     skip: int = 0,
     limit: int = 100,
     source_id: int | None = Query(None),
-    processed: bool | None = Query(None),
-    result: bool | None = Query(None),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
@@ -49,12 +47,6 @@ async def list_news_items(
         if not source:
             raise HTTPException(status_code=404, detail="Source not found")
         filters["source_id"] = source_id
-
-    if processed is not None:
-        filters["processed"] = processed
-
-    if result is not None:
-        filters["result"] = result
 
     items = await news_item_crud.get_multi(
         db,
@@ -137,3 +129,30 @@ async def delete_news_item(
 
     await news_item_crud.delete(db, id=item_id)
     return None
+
+
+@router.get("/{item_id}/results", response_model=list[NewsItemNewsTaskRead])
+async def get_news_item_processing_results(
+    item_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user)
+):
+    """Get all processing results for a news item (which tasks processed it and their results)"""
+    # Verify news item exists and user owns the source
+    item = await news_item_crud.get(db, id=item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="News item not found")
+    
+    # Verify user owns the source
+    source = await source_crud.get(db, id=item["source_id"], user_id=user.id)
+    if not source:
+        raise HTTPException(status_code=404, detail="News item not found")
+    
+    # Get all processing results for this item
+    results = await news_item_news_task_crud.get_multi(
+        db,
+        news_item_id=item_id,
+        schema_to_select=NewsItemNewsTaskRead,
+        return_as_model=True
+    )
+    return results["data"]

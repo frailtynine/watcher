@@ -1,4 +1,4 @@
-.PHONY: help dev up down restart logs clean rebuild db-shell backend-shell migrate-create migrate-upgrade migrate-downgrade test-user test test-models test-unit test-coverage
+.PHONY: help dev up down restart logs clean rebuild db-shell backend-shell migrate-create migrate-upgrade migrate-downgrade test-user test test-models test-unit test-coverage lint
 
 help:
 	@echo "NewsWatcher - Available Commands"
@@ -20,6 +20,9 @@ help:
 	@echo "  make test-models      - Run model tests only"
 	@echo "  make test-unit        - Run a specific test file (FILE=path/to/test.py)"
 	@echo "  make test-coverage    - Run tests with coverage report"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  make lint             - Run ruff linter with autofix"
 	@echo ""
 	@echo "Database Migrations:"
 	@echo "  make migrate-create   - Create new migration (MSG='description')"
@@ -127,3 +130,9 @@ test-coverage:
 	@echo "Running tests with coverage..."
 	docker-compose -f docker-compose.dev.yml exec backend pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
 	@echo "Coverage report generated in backend/htmlcov/index.html"
+
+# Code quality
+lint:
+	@echo "Running ruff linter..."
+	docker-compose -f docker-compose.dev.yml exec backend ruff check . --fix
+	@echo "Linting complete!"
