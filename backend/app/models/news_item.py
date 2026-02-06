@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Text, Boolean, Integer,
+    String, Text, Integer,
     ForeignKey, DateTime, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,23 +39,27 @@ class NewsItem(Base):
         default=utcnow_naive,
         nullable=False
     )
-    processed: Mapped[bool] = mapped_column(
-        Boolean, default=False,
-        nullable=False,
-        index=True
-    )
-    result: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    processed_at: Mapped[datetime | None] = mapped_column(
-        DateTime,
-        nullable=True
-    )
-    ai_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     settings: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     raw_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=utcnow_naive,
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=utcnow_naive,
+        nullable=False
+    )
 
     # Relationships
     source: Mapped["Source"] = relationship(  # type: ignore # noqa: F821
         "Source", back_populates="news_items"
+    )
+    task_results: Mapped[list["NewsItemNewsTask"]] = relationship(  # type: ignore # noqa: F821
+        "NewsItemNewsTask",
+        back_populates="news_item",
+        cascade="all, delete-orphan"
     )
 
     __table_args__ = (

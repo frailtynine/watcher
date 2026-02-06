@@ -14,9 +14,19 @@ import {
   Divider,
   Code,
   HStack,
+  Spinner,
+  Alert,
+  AlertIcon,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
 } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { NewsItem } from '../../types';
+import { useGetNewsItemResultsQuery, useGetNewsTasksQuery } from '../../services/api';
 
 interface NewsItemDetailProps {
   item: NewsItem;
@@ -31,9 +41,17 @@ export default function NewsItemDetail({
   isOpen,
   onClose,
 }: NewsItemDetailProps) {
+  const { data: results, isLoading: resultsLoading } = useGetNewsItemResultsQuery(item.id);
+  const { data: tasks } = useGetNewsTasksQuery();
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
+  };
+
+  const getTaskName = (taskId: number) => {
+    const task = tasks?.find((t) => Number(t.id) === taskId);
+    return task?.name || `Task #${taskId}`;
   };
 
   const renderJson = (data: any, label: string) => {
@@ -71,13 +89,59 @@ export default function NewsItemDetail({
               </Heading>
               <HStack spacing={2} mb={2}>
                 <Badge colorScheme="blue">{sourceName}</Badge>
-                {item.processed && <Badge colorScheme="green">Processed</Badge>}
-                {item.result !== null && (
-                  <Badge colorScheme={item.result ? 'green' : 'red'}>
-                    Result: {item.result ? 'True' : 'False'}
-                  </Badge>
-                )}
               </HStack>
+            </Box>
+
+            <Divider />
+
+            {/* Processing Results Section */}
+            <Box>
+              <Heading size="sm" mb={3}>
+                Processing Results
+              </Heading>
+              {resultsLoading && <Spinner size="sm" />}
+              {results && results.length === 0 && (
+                <Alert status="info">
+                  <AlertIcon />
+                  Not processed by any tasks yet
+                </Alert>
+              )}
+              {results && results.length > 0 && (
+                <Table size="sm" variant="simple">
+                  <Thead>
+                    <Tr>
+                      <Th>Task</Th>
+                      <Th>Processed</Th>
+                      <Th>Result</Th>
+                      <Th>Processed At</Th>
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {results.map((result) => (
+                      <Tr key={result.news_task_id}>
+                        <Td>{getTaskName(result.news_task_id)}</Td>
+                        <Td>
+                          {result.processed ? (
+                            <Badge colorScheme="green">Yes</Badge>
+                          ) : (
+                            <Badge colorScheme="gray">No</Badge>
+                          )}
+                        </Td>
+                        <Td>
+                          {result.result === null ? (
+                            <Badge>-</Badge>
+                          ) : result.result ? (
+                            <Badge colorScheme="green">✓ Relevant</Badge>
+                          ) : (
+                            <Badge colorScheme="red">✗ Not Relevant</Badge>
+                          )}
+                        </Td>
+                        <Td fontSize="xs">{formatDate(result.processed_at)}</Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              )}
             </Box>
 
             <Divider />
@@ -121,9 +185,9 @@ export default function NewsItemDetail({
                 </HStack>
                 <HStack>
                   <Text fontWeight="medium" width="150px">
-                    Processed At:
+                    Fetched:
                   </Text>
-                  <Text>{formatDate(item.processed_at)}</Text>
+                  <Text>{formatDate(item.fetched_at)}</Text>
                 </HStack>
                 <HStack>
                   <Text fontWeight="medium" width="150px">
@@ -140,21 +204,45 @@ export default function NewsItemDetail({
               </VStack>
             </Box>
 
-            {item.ai_response && (
+            {/* AI Responses from each task */}
+            {results && results.some((r) => r.ai_response) && (
               <>
                 <Divider />
-                {renderJson(item.ai_response, 'AI Response')}
+                <Box>
+                  <Heading size="sm" mb={3}>
+                    AI Responses
+                  </Heading>
+                  {results
+                    .filter((r) => r.ai_response)
+                    .map((result) => (
+                      <Box key={result.news_task_id} mb={4}>
+                        <Text fontWeight="semibold" mb={2}>
+                          {getTaskName(result.news_task_id)}
+                        </Text>
+                        <Code
+                          display="block"
+                          whiteSpace="pre"
+                          p={3}
+                          borderRadius="md"
+                          fontSize="xs"
+                          overflowX="auto"
+                        >
+                          {JSON.stringify(result.ai_response, null, 2)}
+                        </Code>
+                      </Box>
+                    ))}
+                </Box>
               </>
             )}
 
-            {item.settings && (
+            {item.settings && Object.keys(item.settings).length > 0 && (
               <>
                 <Divider />
                 {renderJson(item.settings, 'Settings')}
               </>
             )}
 
-            {item.raw_data && (
+            {item.raw_data && Object.keys(item.raw_data).length > 0 && (
               <>
                 <Divider />
                 {renderJson(item.raw_data, 'Raw Data')}

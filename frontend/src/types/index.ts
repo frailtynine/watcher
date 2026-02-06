@@ -59,12 +59,20 @@ export interface NewsItem {
   url: string | null;
   external_id: string | null;
   published_at: string | null;
+  fetched_at: string;
+  settings: any | null;
+  raw_data: any | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewsItemNewsTask {
+  news_item_id: number;
+  news_task_id: number;
   processed: boolean;
   result: boolean | null;
   processed_at: string | null;
   ai_response: any | null;
-  settings: any | null;
-  raw_data: any | null;
   created_at: string;
   updated_at: string;
 }

@@ -8,6 +8,7 @@ import type {
   SourceUpdate,
   SourceNewsTaskAssociation,
   NewsItem,
+  NewsItemNewsTask,
 } from '../types';
 
 export interface LoginRequest {
@@ -196,8 +197,6 @@ export const api = createApi({
         skip?: number;
         limit?: number;
         source_id?: number;
-        processed?: boolean;
-        result?: boolean;
       }
     >({
       query: (params) => ({
@@ -209,6 +208,14 @@ export const api = createApi({
     getNewsItem: builder.query<NewsItem, string>({
       query: (id) => `/news-items/${id}`,
       providesTags: (result, error, id) => [{ type: 'NewsItems', id }],
+    }),
+
+    // News Item News Task (processing results)
+    getNewsItemResults: builder.query<NewsItemNewsTask[], number>({
+      query: (newsItemId) => `/news-items/${newsItemId}/results`,
+      providesTags: (result, error, newsItemId) => [
+        { type: 'NewsItems', id: newsItemId },
+      ],
     }),
   }),
 });
@@ -235,4 +242,5 @@ export const {
   useDisassociateSourceFromTaskMutation,
   useGetNewsItemsQuery,
   useGetNewsItemQuery,
+  useGetNewsItemResultsQuery,
 } = api;
