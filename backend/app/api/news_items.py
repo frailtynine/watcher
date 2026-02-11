@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_async_session
 from app.crud import news_item_crud, source_crud, news_item_news_task_crud
-from app.schemas import NewsItemCreate, NewsItemRead, NewsItemUpdate, NewsItemNewsTaskRead
+from app.schemas import (
+    NewsItemCreate,
+    NewsItemRead,
+    NewsItemUpdate,
+    NewsItemNewsTaskRead,
+)
 from app.api.auth import current_active_user
 from app.models import User
 
@@ -137,17 +142,20 @@ async def get_news_item_processing_results(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
-    """Get all processing results for a news item (which tasks processed it and their results)"""
+    """Get processing results for a news item.
+
+    Returns which tasks processed it and their results.
+    """
     # Verify news item exists and user owns the source
     item = await news_item_crud.get(db, id=item_id)
     if not item:
         raise HTTPException(status_code=404, detail="News item not found")
-    
+
     # Verify user owns the source
     source = await source_crud.get(db, id=item["source_id"], user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="News item not found")
-    
+
     # Get all processing results for this item
     results = await news_item_news_task_crud.get_multi(
         db,

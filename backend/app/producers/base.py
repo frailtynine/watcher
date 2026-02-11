@@ -24,11 +24,7 @@ class BaseProducer(ABC):
     """Abstract base class for news producers."""
 
     def __init__(self):
-        """Initialize producer with database session.
-
-        Args:
-            session: SQLAlchemy async session
-        """
+        """Initialize producer with database session."""
         self.logger = logger.getChild(self.__class__.__name__)
 
     @abstractmethod
@@ -190,8 +186,8 @@ class BaseProducer(ABC):
     async def get_sources(
         self,
         source_type: str,
-        session: AsyncSession
     ) -> List[Source]:
+        """Fetch active sources of given type with active tasks."""
         stmt = (
             select(Source)
             .join(SourceNewsTask, SourceNewsTask.source_id == Source.id)
@@ -203,8 +199,23 @@ class BaseProducer(ABC):
             )
             .distinct()
         )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        result: list[Source] = []
+        async for session in get_async_session():
+            try:
+                sources = await session.execute(stmt)
+                result = sources.scalars().all()
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to fetch sources: {e}", exc_info=True
+                )
+                await session.rollback()
+            finally:
+                break
+
+        if not result:
+            self.logger.info(f"No active {source_type} sources to process")
+            return []
+        return result
 
     async def run_job(
         self,
@@ -221,24 +232,7 @@ class BaseProducer(ABC):
         self.logger.info(f"Starting {source_type} producer job")
 
         # Fetch active sources
-        sources: list[Source] = []
-        async for session in get_async_session():
-            try:
-                sources = await self.get_sources(
-                    source_type=source_type,
-                    session=session
-                )
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to fetch sources: {e}", exc_info=True
-                )
-                await session.rollback()
-            finally:
-                break
-
-        if not sources:
-            self.logger.info(f"No active {source_type} sources to process")
-            return
+        sources = await self.get_sources(source_type=source_type)
 
         self.logger.info(f"Processing {len(sources)} {source_type} sources")
 

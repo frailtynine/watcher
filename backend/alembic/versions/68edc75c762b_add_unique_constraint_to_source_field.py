@@ -28,7 +28,7 @@ def upgrade() -> None:
             GROUP BY source
         )
     """)
-    
+
     # Delete news_items for duplicate sources
     op.execute("""
         DELETE FROM news_item
@@ -38,7 +38,7 @@ def upgrade() -> None:
             GROUP BY source
         )
     """)
-    
+
     # Remove duplicate sources, keeping only the oldest one
     op.execute("""
         DELETE FROM source
@@ -48,7 +48,7 @@ def upgrade() -> None:
             GROUP BY source
         )
     """)
-    
+
     op.create_unique_constraint(
         'uq_source_source', 'source', ['source']
     )

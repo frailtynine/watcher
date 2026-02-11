@@ -31,6 +31,6 @@ class SourceRead(SourceBase):
     user_id: int
     last_fetched_at: datetime | None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True

@@ -1,5 +1,11 @@
 from fastcrud import FastCRUD
-from app.models import NewsTask, Source, SourceNewsTask, NewsItem, NewsItemNewsTask
+from app.models import (
+    NewsTask,
+    Source,
+    SourceNewsTask,
+    NewsItem,
+    NewsItemNewsTask
+)
 
 # Create FastCRUD instances for each model
 news_task_crud = FastCRUD(NewsTask)

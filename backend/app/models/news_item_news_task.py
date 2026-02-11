@@ -8,7 +8,7 @@ from app.models.utils import utcnow_naive
 
 
 class NewsItemNewsTask(Base):
-    """Association table between NewsItem and NewsTask with processing results"""
+    """Association table: NewsItem & NewsTask with processing results"""
     __tablename__ = "news_item_news_task"
 
     news_item_id: Mapped[int] = mapped_column(
@@ -19,7 +19,7 @@ class NewsItemNewsTask(Base):
         ForeignKey("news_task.id"),
         primary_key=True
     )
-    
+
     # Processing results
     processed: Mapped[bool] = mapped_column(
         Boolean,
@@ -33,7 +33,7 @@ class NewsItemNewsTask(Base):
         nullable=True
     )
     ai_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

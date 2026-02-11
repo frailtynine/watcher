@@ -47,9 +47,9 @@ async def list_news_tasks(
         schema_to_select=NewsTaskRead,
         return_as_model=True
     )
-    
+
     tasks = result["data"]
-    
+
     # Get sources count for each task
     task_ids = [task.id for task in tasks]
     if task_ids:
@@ -64,10 +64,10 @@ async def list_news_tasks(
         result_counts = await db.execute(stmt)
         counts_dict = {row.news_task_id: row.count
                        for row in result_counts}
-        
+
         for task in tasks:
             task.sources_count = counts_dict.get(task.id, 0)
-    
+
     return tasks
 
 
@@ -93,17 +93,17 @@ async def update_news_task(
 ):
     """Update a news task"""
     from datetime import datetime, timezone
-    
+
     # Check ownership
     existing = await news_task_crud.get(db, id=task_id, user_id=user.id)
     if not existing:
         raise HTTPException(status_code=404, detail="News task not found")
-    
+
     # Manually set updated_at to naive UTC to avoid timezone mismatch
     # (FastCRUD auto-sets it with timezone-aware datetime)
     update_dict = news_task_update.model_dump(exclude_unset=True)
     update_dict["updated_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
-    
+
     # Use raw SQL update to avoid FastCRUD's auto-timezone handling
     from sqlalchemy import update
     stmt = (
@@ -115,7 +115,7 @@ async def update_news_task(
     result = await db.execute(stmt)
     await db.commit()
     updated = result.scalar_one()
-    
+
     return updated
 
 
