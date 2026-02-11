@@ -12,23 +12,23 @@ async def create_user():
         # Get user manager
         from fastapi_users.db import SQLAlchemyUserDatabase
         user_db = SQLAlchemyUserDatabase(session, User)
-        
+
         # Import user manager class and create instance
         from app.core.users import UserManager
         user_manager = UserManager(user_db)
-        
+
         # Create user
         user_create = UserCreate(
             email="test@example.com",
             password="password123"
         )
-        
+
         try:
             user = await user_manager.create(user_create)
             print(f'✅ Test user created: {user.email} / password123')
         except Exception as e:
             print(f'❌ Error creating user: {e}')
-        
+
         break  # Only use first session
 
 

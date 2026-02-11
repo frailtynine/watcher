@@ -21,6 +21,9 @@ import {
   HStack,
   IconButton,
   Divider,
+  RadioGroup,
+  Radio,
+  Stack,
 } from '@chakra-ui/react';
 import { useState, useEffect } from 'react';
 import { CloseIcon } from '@chakra-ui/icons';
@@ -37,6 +40,8 @@ interface AddSourceModalProps {
   taskId: string;
 }
 
+type SourceType = 'RSS' | 'Telegram';
+
 const isValidRSSUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
@@ -44,6 +49,22 @@ const isValidRSSUrl = (url: string): boolean => {
   } catch {
     return false;
   }
+};
+
+const isValidTelegramChannel = (channel: string): boolean => {
+  // Telegram channels can be:
+  // - Username format: @channelname or channelname
+  // - Numeric ID: -1001234567890
+  if (!channel.trim()) return false;
+  
+  const trimmed = channel.trim();
+  
+  // Numeric ID format
+  if (/^-?\d+$/.test(trimmed)) return true;
+  
+  // Username format (with or without @)
+  const username = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+  return /^[a-zA-Z0-9_]{5,32}$/.test(username);
 };
 
 export const AddSourceModal = ({
@@ -59,6 +80,7 @@ export const AddSourceModal = ({
     useLazySearchSourcesQuery();
   const toast = useToast();
 
+  const [sourceType, setSourceType] = useState<SourceType>('RSS');
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,17 +106,26 @@ export const AddSourceModal = ({
     const newErrors: typeof errors = {};
 
     if (!name.trim()) {
-      newErrors.name = 'Feed name is required';
+      newErrors.name = `${sourceType} name is required`;
     } else if (name.length < 3) {
-      newErrors.name = 'Feed name must be at least 3 characters';
+      newErrors.name = 'Name must be at least 3 characters';
     } else if (name.length > 100) {
-      newErrors.name = 'Feed name must be less than 100 characters';
+      newErrors.name = 'Name must be less than 100 characters';
     }
 
-    if (!url.trim()) {
-      newErrors.url = 'RSS feed URL is required';
-    } else if (!isValidRSSUrl(url.trim())) {
-      newErrors.url = 'Please enter a valid HTTP or HTTPS URL';
+    if (sourceType === 'RSS') {
+      if (!url.trim()) {
+        newErrors.url = 'RSS feed URL is required';
+      } else if (!isValidRSSUrl(url.trim())) {
+        newErrors.url = 'Please enter a valid HTTP or HTTPS URL';
+      }
+    } else {
+      // Telegram validation
+      if (!url.trim()) {
+        newErrors.url = 'Telegram channel is required';
+      } else if (!isValidTelegramChannel(url.trim())) {
+        newErrors.url = 'Please enter a valid Telegram channel username or ID';
+      }
     }
 
     setErrors(newErrors);
@@ -111,7 +142,7 @@ export const AddSourceModal = ({
         }).unwrap();
 
         toast({
-          title: 'RSS feed added',
+          title: `${selectedSource.type} source added`,
           status: 'success',
           duration: 2000,
         });
@@ -119,7 +150,7 @@ export const AddSourceModal = ({
         handleClose();
       } catch (error) {
         toast({
-          title: 'Failed to add feed',
+          title: 'Failed to add source',
           description: 'Please try again',
           status: 'error',
           duration: 3000,
@@ -132,10 +163,16 @@ export const AddSourceModal = ({
       }
 
       try {
+        // For Telegram, normalize the channel identifier
+        let sourceValue = url.trim();
+        if (sourceType === 'Telegram' && sourceValue.startsWith('@')) {
+          sourceValue = sourceValue.slice(1);
+        }
+
         const result = await createSource({
           name: name.trim(),
-          source: url.trim(),
-          type: 'RSS',
+          source: sourceValue,
+          type: sourceType,
           active: true,
         }).unwrap();
 
@@ -145,7 +182,7 @@ export const AddSourceModal = ({
         }).unwrap();
 
         toast({
-          title: 'RSS feed added',
+          title: `${sourceType} source added`,
           status: 'success',
           duration: 2000,
         });
@@ -153,7 +190,7 @@ export const AddSourceModal = ({
         handleClose();
       } catch (error) {
         toast({
-          title: 'Failed to add feed',
+          title: 'Failed to add source',
           description: 'Please try again',
           status: 'error',
           duration: 3000,
@@ -163,6 +200,7 @@ export const AddSourceModal = ({
   };
 
   const handleClose = () => {
+    setSourceType('RSS');
     setName('');
     setUrl('');
     setSearchQuery('');
@@ -189,14 +227,34 @@ export const AddSourceModal = ({
     <Modal isOpen={isOpen} onClose={handleClose} size="xl">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Add RSS Feed</ModalHeader>
+        <ModalHeader>Add Source</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           <VStack spacing={4} align="stretch">
+            {/* Source Type Selection */}
+            {!showSearch && !selectedSource && (
+              <FormControl>
+                <FormLabel>Source Type</FormLabel>
+                <RadioGroup
+                  value={sourceType}
+                  onChange={(value) => {
+                    setSourceType(value as SourceType);
+                    setUrl('');
+                    setErrors({});
+                  }}
+                >
+                  <Stack direction="row" spacing={4}>
+                    <Radio value="RSS">RSS Feed</Radio>
+                    <Radio value="Telegram">Telegram Channel</Radio>
+                  </Stack>
+                </RadioGroup>
+              </FormControl>
+            )}
+
             {showSearch && !selectedSource && (
               <>
                 <FormControl>
-                  <FormLabel>Search Existing Feeds</FormLabel>
+                  <FormLabel>Search Existing Sources</FormLabel>
                   <Input
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -228,10 +286,17 @@ export const AddSourceModal = ({
                           _hover={{ bg: 'gray.50' }}
                           onClick={() => handleSelectSource(source)}
                         >
-                          <Text fontWeight="medium">{source.name}</Text>
-                          <Text fontSize="sm" color="gray.600" noOfLines={1}>
-                            {source.source}
-                          </Text>
+                          <HStack justify="space-between">
+                            <Box flex="1">
+                              <Text fontWeight="medium">{source.name}</Text>
+                              <Text fontSize="sm" color="gray.600" noOfLines={1}>
+                                {source.source}
+                              </Text>
+                            </Box>
+                            <Text fontSize="xs" color="gray.500" fontWeight="medium">
+                              {source.type}
+                            </Text>
+                          </HStack>
                         </ListItem>
                       ))}
                     </List>
@@ -242,7 +307,7 @@ export const AddSourceModal = ({
                   !isFetching &&
                   searchResults?.length === 0 && (
                     <Text fontSize="sm" color="gray.500" textAlign="center">
-                      No existing feeds found
+                      No existing sources found
                     </Text>
                   )}
 
@@ -253,7 +318,7 @@ export const AddSourceModal = ({
                   onClick={handleCreateNew}
                   size="sm"
                 >
-                  Create New Feed
+                  Create New Source
                 </Button>
               </>
             )}
@@ -288,23 +353,42 @@ export const AddSourceModal = ({
             {!showSearch && !selectedSource && (
               <>
                 <FormControl isInvalid={!!errors.name} isRequired>
-                  <FormLabel>Feed Name</FormLabel>
+                  <FormLabel>
+                    {sourceType === 'RSS' ? 'Feed Name' : 'Channel Name'}
+                  </FormLabel>
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., TechCrunch Startups"
+                    placeholder={
+                      sourceType === 'RSS'
+                        ? 'e.g., TechCrunch Startups'
+                        : 'e.g., Tech News Channel'
+                    }
                   />
                   <FormErrorMessage>{errors.name}</FormErrorMessage>
                 </FormControl>
 
                 <FormControl isInvalid={!!errors.url} isRequired>
-                  <FormLabel>RSS Feed URL</FormLabel>
+                  <FormLabel>
+                    {sourceType === 'RSS'
+                      ? 'RSS Feed URL'
+                      : 'Telegram Channel'}
+                  </FormLabel>
                   <Input
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://example.com/feed.xml"
-                    type="url"
+                    placeholder={
+                      sourceType === 'RSS'
+                        ? 'https://example.com/feed.xml'
+                        : '@channelname or -1001234567890'
+                    }
+                    type={sourceType === 'RSS' ? 'url' : 'text'}
                   />
+                  {sourceType === 'Telegram' && !errors.url && (
+                    <Text fontSize="xs" color="gray.500" mt={1}>
+                      Enter channel username (with or without @) or numeric ID
+                    </Text>
+                  )}
                   <FormErrorMessage>{errors.url}</FormErrorMessage>
                 </FormControl>
 
@@ -330,7 +414,7 @@ export const AddSourceModal = ({
             isLoading={isLoading}
             isDisabled={!selectedSource && (!name || !url)}
           >
-            {selectedSource ? 'Add Feed' : 'Create & Add Feed'}
+            {selectedSource ? 'Add Source' : 'Create & Add Source'}
           </Button>
         </ModalFooter>
       </ModalContent>

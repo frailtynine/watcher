@@ -43,4 +43,9 @@ dev = [
 line-length = 79
 
 [tool.ruff.lint]
+select = ["E", "F", "W"]  # pycodestyle errors, Pyflakes, pycodestyle warnings (includes whitespace)
 ignore = ["F821"]  # Ignore undefined names in SQLAlchemy relationships
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*.py" = ["E501"]  # Allow long lines in migration files
+"tests/*.py" = ["E501"]  # Allow long lines in test files

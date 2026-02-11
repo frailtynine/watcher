@@ -17,14 +17,18 @@ async def associate_source_with_task(
 ):
     """Associate a source with a news task"""
     # Verify ownership of both source and task
-    source = await source_crud.get(db, id=association.source_id, user_id=user.id)
+    source = await source_crud.get(
+        db, id=association.source_id, user_id=user.id
+    )
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
-    task = await news_task_crud.get(db, id=association.news_task_id, user_id=user.id)
+
+    task = await news_task_crud.get(
+        db, id=association.news_task_id, user_id=user.id
+    )
     if not task:
         raise HTTPException(status_code=404, detail="News task not found")
-    
+
     # Check if association already exists
     existing = await source_news_task_crud.get(
         db,
@@ -32,8 +36,10 @@ async def associate_source_with_task(
         news_task_id=association.news_task_id
     )
     if existing:
-        raise HTTPException(status_code=400, detail="Association already exists")
-    
+        raise HTTPException(
+            status_code=400, detail="Association already exists"
+        )
+
     created = await source_news_task_crud.create(
         db,
         association,
@@ -55,13 +61,15 @@ async def disassociate_source_from_task(
     source = await source_crud.get(db, id=source_id, user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     task = await news_task_crud.get(db, id=task_id, user_id=user.id)
     if not task:
         raise HTTPException(status_code=404, detail="News task not found")
-    
+
     # Delete association
-    await source_news_task_crud.delete(db, source_id=source_id, news_task_id=task_id)
+    await source_news_task_crud.delete(
+        db, source_id=source_id, news_task_id=task_id
+    )
     return None
 
 
@@ -76,7 +84,7 @@ async def list_tasks_for_source(
     source = await source_crud.get(db, id=source_id, user_id=user.id)
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
-    
+
     associations = await source_news_task_crud.get_multi(
         db,
         source_id=source_id,
@@ -97,7 +105,7 @@ async def list_sources_for_task(
     task = await news_task_crud.get(db, id=task_id, user_id=user.id)
     if not task:
         raise HTTPException(status_code=404, detail="News task not found")
-    
+
     associations = await source_news_task_crud.get_multi(
         db,
         news_task_id=task_id,

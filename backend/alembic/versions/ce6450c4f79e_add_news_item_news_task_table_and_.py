@@ -35,11 +35,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('news_item_id', 'news_task_id')
     )
     op.create_index(op.f('ix_news_item_news_task_processed'), 'news_item_news_task', ['processed'], unique=False)
-    
+
     # Add timestamp columns with server defaults for existing rows
     op.add_column('news_item', sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')))
     op.add_column('news_item', sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')))
-    
+
     # Remove processing fields
     op.drop_index(op.f('ix_news_item_processed'), table_name='news_item')
     op.drop_column('news_item', 'processed_at')

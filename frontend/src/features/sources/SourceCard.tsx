@@ -4,12 +4,10 @@ import {
   Text,
   IconButton,
   useToast,
-  Tooltip,
+  Badge,
 } from '@chakra-ui/react';
 import { DeleteIcon, LinkIcon } from '@chakra-ui/icons';
-import { FaPlay, FaPause } from 'react-icons/fa';
 import {
-  useUpdateSourceMutation,
   useDisassociateSourceFromTaskMutation,
 } from '../../services/api';
 import type { Source } from '../../types';
@@ -20,33 +18,11 @@ interface SourceCardProps {
 }
 
 export const SourceCard = ({ source, taskId }: SourceCardProps) => {
-  const [updateSource] = useUpdateSourceMutation();
   const [disassociate] = useDisassociateSourceFromTaskMutation();
   const toast = useToast();
 
-  const handleToggleActive = async () => {
-    try {
-      await updateSource({
-        id: source.id,
-        data: { active: !source.active },
-      }).unwrap();
-
-      toast({
-        title: source.active ? 'Feed paused' : 'Feed resumed',
-        status: 'success',
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: 'Failed to update feed',
-        status: 'error',
-        duration: 3000,
-      });
-    }
-  };
-
   const handleRemove = async () => {
-    if (!confirm('Remove this feed from the task?')) {
+    if (!confirm('Remove this source from the task?')) {
       return;
     }
 
@@ -57,13 +33,13 @@ export const SourceCard = ({ source, taskId }: SourceCardProps) => {
       }).unwrap();
 
       toast({
-        title: 'Feed removed',
+        title: 'Source removed',
         status: 'success',
         duration: 2000,
       });
     } catch (error) {
       toast({
-        title: 'Failed to remove feed',
+        title: 'Failed to remove source',
         status: 'error',
         duration: 3000,
       });
@@ -80,22 +56,19 @@ export const SourceCard = ({ source, taskId }: SourceCardProps) => {
     >
       <HStack justify="space-between">
         <HStack flex="1" spacing={3}>
-          <Tooltip label={source.active ? 'Pause feed' : 'Resume feed'}>
-            <IconButton
-              aria-label={source.active ? 'Pause' : 'Play'}
-              icon={source.active ? <FaPause /> : <FaPlay />}
-              size="xs"
-              colorScheme={source.active ? 'orange' : 'green'}
-              onClick={handleToggleActive}
-            />
-          </Tooltip>
+          <LinkIcon boxSize={4} color="gray.500" />
 
           <Box flex="1">
-            <HStack>
-              <LinkIcon boxSize={3} color="gray.500" />
+            <HStack spacing={2}>
               <Text fontWeight="medium" fontSize="sm">
                 {source.name}
               </Text>
+              <Badge
+                colorScheme={source.type === 'RSS' ? 'blue' : 'purple'}
+                fontSize="xs"
+              >
+                {source.type}
+              </Badge>
             </HStack>
             <Text fontSize="xs" color="gray.500" noOfLines={1}>
               {source.source}

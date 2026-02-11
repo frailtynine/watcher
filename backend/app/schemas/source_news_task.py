@@ -11,6 +11,6 @@ class SourceNewsTaskRead(BaseModel):
     source_id: int
     news_task_id: int
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
