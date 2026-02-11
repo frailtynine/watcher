@@ -78,6 +78,7 @@ async def validate_telegram_channel(
                 }
 
             # Successfully found the channel
+            await subscribe_to_validated_channel(client, normalized_channel)
             return {
                 "valid": True,
                 "channel_id": normalized_channel,
@@ -153,9 +154,8 @@ async def subscribe_to_validated_channel(
         TelegramValidationError: If subscription fails
     """
     try:
-        async with client:
-            await client(JoinChannelRequest(channel))
-            logger.info(f"✓ Joined channel: {channel}")
+        await client(JoinChannelRequest(channel))
+        logger.info(f"✓ Joined channel: {channel}")
     except Exception as e:
         logger.error(
             f"Error subscribing to Telegram channel: {e}",
