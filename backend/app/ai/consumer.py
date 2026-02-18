@@ -109,7 +109,6 @@ class AIConsumer:
             # Count all as errors if commit fails
             return {"processed": 0, "errors": len(news_items)}
 
-
         # Count successes and errors
         processed = sum(
             1 for r in results if r and not isinstance(r, Exception)
@@ -117,7 +116,7 @@ class AIConsumer:
         errors = sum(
             1 for r in results if isinstance(r, Exception) or r is None
         )
- 
+
         return {"processed": processed, "errors": errors}
 
     async def _process_task_news_concurrent(
