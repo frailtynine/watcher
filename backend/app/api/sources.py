@@ -34,7 +34,7 @@ async def create_source(
 ):
     """Create a new source for the current user"""
     from app.schemas.source import SourceCreateInternal
-    
+
     # Validate based on source type
     if source.type == SourceType.TELEGRAM:
         # Validate Telegram channel before creating source
@@ -63,11 +63,11 @@ async def create_source(
                     f"{validation_result['error']}"
                 )
             )
-        
+
         # Auto-populate name from feed title if name is generic or not provided
         feed_title = validation_result.get("title")
         if feed_title and (
-            not source.name or 
+            not source.name or
             source.name == "My RSS Feed" or
             len(source.name.strip()) == 0
         ):
@@ -78,7 +78,7 @@ async def create_source(
                 source=source.source,
                 active=source.active
             )
-    
+
     source_internal = SourceCreateInternal(
         **source.model_dump(),
         user_id=user.id,

@@ -2,7 +2,6 @@
 
 import logging
 import asyncio
-from typing import Optional
 
 import feedparser
 import aiohttp

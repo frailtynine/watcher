@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.validators.rss import validate_rss_feed, RSSValidationError
+from app.validators.rss import validate_rss_feed
 
 
 @pytest.fixture
@@ -88,7 +88,7 @@ async def test_validate_rss_feed_success(mock_valid_feed):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -99,13 +99,13 @@ async def test_validate_rss_feed_success(mock_valid_feed):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         # Mock feedparser
         with patch("feedparser.parse", return_value=mock_valid_feed):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is True
     assert result["url"] == "https://example.com/feed.xml"
     assert result["title"] == "Test RSS Feed"
@@ -116,7 +116,7 @@ async def test_validate_rss_feed_success(mock_valid_feed):
 async def test_validate_rss_feed_empty_url():
     """Test validation with empty URL."""
     result = await validate_rss_feed("")
-    
+
     assert result["valid"] is False
     assert result["error"] == "URL cannot be empty"
 
@@ -125,7 +125,7 @@ async def test_validate_rss_feed_empty_url():
 async def test_validate_rss_feed_invalid_protocol():
     """Test validation with invalid URL protocol."""
     result = await validate_rss_feed("ftp://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert result["error"] == "URL must start with http:// or https://"
 
@@ -137,7 +137,7 @@ async def test_validate_rss_feed_http_error():
         # Mock 404 response
         mock_response = AsyncMock()
         mock_response.status = 404
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -148,11 +148,11 @@ async def test_validate_rss_feed_http_error():
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert "HTTP error: status code 404" in result["error"]
 
@@ -161,7 +161,7 @@ async def test_validate_rss_feed_http_error():
 async def test_validate_rss_feed_timeout():
     """Test validation with timeout."""
     import asyncio
-    
+
     with patch("aiohttp.ClientSession") as mock_session:
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
@@ -172,11 +172,11 @@ async def test_validate_rss_feed_timeout():
         mock_session_instance.get.return_value.__aenter__ = AsyncMock(
             side_effect=asyncio.TimeoutError()
         )
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert "timeout" in result["error"].lower()
 
@@ -188,7 +188,7 @@ async def test_validate_rss_feed_no_entries(mock_feed_no_entries):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -199,12 +199,12 @@ async def test_validate_rss_feed_no_entries(mock_feed_no_entries):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         with patch("feedparser.parse", return_value=mock_feed_no_entries):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert result["error"] == "Feed has no entries"
 
@@ -216,7 +216,7 @@ async def test_validate_rss_feed_invalid_entries(mock_feed_invalid_entries):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -227,15 +227,15 @@ async def test_validate_rss_feed_invalid_entries(mock_feed_invalid_entries):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         with patch(
             "feedparser.parse",
             return_value=mock_feed_invalid_entries
         ):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert "missing required fields" in result["error"]
 
@@ -247,12 +247,12 @@ async def test_validate_rss_feed_bozo_with_entries(mock_valid_feed):
     bozo_feed = mock_valid_feed.copy()
     bozo_feed["bozo"] = True
     bozo_feed["bozo_exception"] = Exception("Minor parsing issue")
-    
+
     with patch("aiohttp.ClientSession") as mock_session:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -263,12 +263,12 @@ async def test_validate_rss_feed_bozo_with_entries(mock_valid_feed):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         with patch("feedparser.parse", return_value=bozo_feed):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     # Should still be valid if entries are present and valid
     assert result["valid"] is True
     assert result["title"] == "Test RSS Feed"
@@ -281,7 +281,7 @@ async def test_validate_rss_feed_bozo_no_entries(mock_bozo_feed):
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -292,12 +292,12 @@ async def test_validate_rss_feed_bozo_no_entries(mock_bozo_feed):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         with patch("feedparser.parse", return_value=mock_bozo_feed):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert "Feed parsing error" in result["error"]
 
@@ -307,12 +307,12 @@ async def test_validate_rss_feed_no_title(mock_valid_feed):
     """Test validation with feed that has no title."""
     feed_no_title = mock_valid_feed.copy()
     feed_no_title["feed"] = {}
-    
+
     with patch("aiohttp.ClientSession") as mock_session:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.read = AsyncMock(return_value=b"<rss></rss>")
-        
+
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
             return_value=mock_session_instance
@@ -323,12 +323,12 @@ async def test_validate_rss_feed_no_title(mock_valid_feed):
             return_value=mock_response
         )
         mock_session_instance.get.return_value.__aexit__ = AsyncMock()
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         with patch("feedparser.parse", return_value=feed_no_title):
             result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     # Should still be valid, just no title
     assert result["valid"] is True
     assert result["title"] is None
@@ -338,7 +338,7 @@ async def test_validate_rss_feed_no_title(mock_valid_feed):
 async def test_validate_rss_feed_network_error():
     """Test validation with network error."""
     import aiohttp
-    
+
     with patch("aiohttp.ClientSession") as mock_session:
         mock_session_instance = MagicMock()
         mock_session_instance.__aenter__ = AsyncMock(
@@ -349,10 +349,10 @@ async def test_validate_rss_feed_network_error():
         mock_session_instance.get.return_value.__aenter__ = AsyncMock(
             side_effect=aiohttp.ClientError("Connection refused")
         )
-        
+
         mock_session.return_value = mock_session_instance
-        
+
         result = await validate_rss_feed("https://example.com/feed.xml")
-    
+
     assert result["valid"] is False
     assert "Network error" in result["error"]

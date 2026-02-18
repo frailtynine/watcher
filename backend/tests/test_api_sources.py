@@ -1,6 +1,6 @@
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch
 from app.models import Source
 
 pytestmark = pytest.mark.anyio
@@ -16,7 +16,7 @@ async def test_create_source_success(client: AsyncClient, auth_headers: dict):
             "title": "Test Feed Title",
             "error": None
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -223,7 +223,7 @@ async def test_create_rss_source_with_invalid_feed(
             "title": None,
             "error": "Feed has no entries"
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -234,7 +234,7 @@ async def test_create_rss_source_with_invalid_feed(
                 "active": True,
             },
         )
-    
+
     assert response.status_code == 400
     assert "Invalid RSS feed" in response.json()["detail"]
     assert "Feed has no entries" in response.json()["detail"]
@@ -251,7 +251,7 @@ async def test_create_rss_source_auto_populate_name(
             "title": "Awesome Tech Blog",
             "error": None
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -262,7 +262,7 @@ async def test_create_rss_source_auto_populate_name(
                 "active": True,
             },
         )
-    
+
     assert response.status_code == 201
     data = response.json()
     # Should use feed title instead of generic name
@@ -281,7 +281,7 @@ async def test_create_rss_source_keep_custom_name(
             "title": "Awesome Tech Blog",
             "error": None
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -292,7 +292,7 @@ async def test_create_rss_source_keep_custom_name(
                 "active": True,
             },
         )
-    
+
     assert response.status_code == 201
     data = response.json()
     # Should keep custom name
@@ -311,7 +311,7 @@ async def test_create_rss_source_malformed_url(
             "title": None,
             "error": "URL must start with http:// or https://"
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -322,7 +322,7 @@ async def test_create_rss_source_malformed_url(
                 "active": True,
             },
         )
-    
+
     assert response.status_code == 400
     assert "Invalid RSS feed" in response.json()["detail"]
 
@@ -338,7 +338,7 @@ async def test_create_rss_source_http_error(
             "title": None,
             "error": "HTTP error: status code 404"
         }
-        
+
         response = await client.post(
             "/api/sources/",
             headers=auth_headers,
@@ -349,7 +349,7 @@ async def test_create_rss_source_http_error(
                 "active": True,
             },
         )
-    
+
     assert response.status_code == 400
     assert "Invalid RSS feed" in response.json()["detail"]
     assert "404" in response.json()["detail"]
