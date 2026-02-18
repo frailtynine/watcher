@@ -2,6 +2,8 @@
 
 import logging
 import asyncio
+from urllib.parse import urlparse
+import ipaddress
 
 import feedparser
 import aiohttp
@@ -12,6 +14,58 @@ logger = logging.getLogger(__name__)
 class RSSValidationError(Exception):
     """Custom exception for RSS validation errors."""
     pass
+
+
+def _is_safe_url(url: str) -> tuple[bool, str | None]:
+    """Check if URL is safe to fetch (not pointing to private networks).
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        Tuple of (is_safe, error_message)
+    """
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False, "Invalid URL: no hostname found"
+
+        # Try to resolve hostname to IP
+        try:
+            # Check if hostname is already an IP address
+            ip = ipaddress.ip_address(hostname)
+
+            # Block private IP ranges (RFC 1918, loopback, link-local, etc.)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False, (
+                    "Access to private/local IP addresses is not allowed"
+                )
+
+        except ValueError:
+            # Hostname is not an IP address, it's a domain name
+            # Block localhost and common internal domains
+            blocked_domains = [
+                'localhost',
+                '127.0.0.1',
+                '0.0.0.0',
+                'internal',
+                'local'
+            ]
+            hostname_lower = hostname.lower()
+            for blocked in blocked_domains:
+                if hostname_lower == blocked or (
+                    hostname_lower.endswith(f'.{blocked}')
+                ):
+                    return False, (
+                        "Access to localhost/internal domains is not allowed"
+                    )
+
+        return True, None
+
+    except Exception as e:
+        return False, f"URL validation error: {str(e)}"
 
 
 async def validate_rss_feed(url: str, timeout: int = 10) -> dict:
@@ -48,6 +102,16 @@ async def validate_rss_feed(url: str, timeout: int = 10) -> dict:
             "url": url,
             "title": None,
             "error": "URL must start with http:// or https://"
+        }
+
+    # SSRF protection: validate URL safety
+    is_safe, error_msg = _is_safe_url(url)
+    if not is_safe:
+        return {
+            "valid": False,
+            "url": url,
+            "title": None,
+            "error": error_msg
         }
 
     try:

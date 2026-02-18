@@ -356,3 +356,44 @@ async def test_validate_rss_feed_network_error():
 
     assert result["valid"] is False
     assert "Network error" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_validate_rss_feed_ssrf_protection_localhost():
+    """Test SSRF protection blocks localhost."""
+    result = await validate_rss_feed("http://localhost/feed.xml")
+
+    assert result["valid"] is False
+    assert "localhost" in result["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_validate_rss_feed_ssrf_protection_private_ip():
+    """Test SSRF protection blocks private IP addresses."""
+    # Test private IP ranges
+    private_ips = [
+        "http://192.168.1.1/feed.xml",
+        "http://10.0.0.1/feed.xml",
+        "http://172.16.0.1/feed.xml",
+        "http://127.0.0.1/feed.xml",
+    ]
+
+    for url in private_ips:
+        result = await validate_rss_feed(url)
+        assert result["valid"] is False
+        assert (
+            "private" in result["error"].lower()
+            or "local" in result["error"].lower()
+        ), f"Failed to block {url}"
+
+
+@pytest.mark.asyncio
+async def test_validate_rss_feed_ssrf_protection_loopback():
+    """Test SSRF protection blocks loopback addresses."""
+    result = await validate_rss_feed("http://127.0.0.1/feed.xml")
+
+    assert result["valid"] is False
+    assert (
+        "private" in result["error"].lower()
+        or "local" in result["error"].lower()
+    )
