@@ -2,7 +2,7 @@
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.ai.consumer import AIConsumer
 from app.ai.gemini_client import ProcessingResult
@@ -208,7 +208,7 @@ async def test_save_result_creates_new_record(
             published_at=datetime.now()
         )
         session.add(news_item)
-        
+
         news_task = NewsTask(
             user_id=test_user.id,
             name="Test Task",
@@ -278,7 +278,7 @@ async def test_save_result_updates_existing_record(
             published_at=datetime.now()
         )
         session.add(news_item)
-        
+
         news_task = NewsTask(
             user_id=test_user.id,
             name="Test Task",
@@ -418,7 +418,6 @@ async def test_process_task_news_success(
         )
         session.add(news_item)
         await session.commit()
-        news_id = news_item.id
 
     # Mock Gemini client
     mock_client = MagicMock()

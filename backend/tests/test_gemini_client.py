@@ -1,7 +1,7 @@
 """Tests for Gemini client."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from dataclasses import dataclass
 
 from app.ai.gemini_client import GeminiClient, ProcessingResult

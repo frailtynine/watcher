@@ -23,7 +23,8 @@ async def ai_consumer_job():
 
             for user in users:
                 # Check if user has API key configured
-                if not user.settings or not user.settings.get('gemini_api_key'):
+                if (not user.settings or
+                        not user.settings.get('gemini_api_key')):
                     continue
 
                 # Process news for this user
