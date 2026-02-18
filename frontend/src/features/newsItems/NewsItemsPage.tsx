@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -19,8 +19,12 @@ import {
   Center,
   useDisclosure,
   VStack,
+  Badge,
+  Tooltip,
+  Icon,
 } from '@chakra-ui/react';
-import { useGetNewsItemsQuery, useGetSourcesQuery } from '../../services/api';
+import { CheckCircleIcon, WarningIcon, InfoIcon } from '@chakra-ui/icons';
+import { useGetNewsItemsQuery, useGetSourcesQuery, useGetNewsItemResultsQuery } from '../../services/api';
 import { NewsItem } from '../../types';
 import NewsItemDetail from './NewsItemDetail';
 
@@ -29,6 +33,7 @@ export default function NewsItemsPage() {
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
   const [sourceId, setSourceId] = useState<number | undefined>(undefined);
+  const [newsItemsWithResults, setNewsItemsWithResults] = useState<NewsItem[]>([]);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -39,6 +44,33 @@ export default function NewsItemsPage() {
   });
 
   const { data: sources } = useGetSourcesQuery();
+
+  // Fetch processing results for all displayed news items
+  useEffect(() => {
+    if (newsItems) {
+      const fetchResults = async () => {
+        const itemsWithResults = await Promise.all(
+          newsItems.map(async (item) => {
+            try {
+              const results = await fetch(
+                `/api/news-items/${item.id}/results`,
+                {
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+                  },
+                }
+              ).then(r => r.json());
+              return { ...item, processing_results: results };
+            } catch {
+              return { ...item, processing_results: [] };
+            }
+          })
+        );
+        setNewsItemsWithResults(itemsWithResults);
+      };
+      fetchResults();
+    }
+  }, [newsItems]);
 
   const handleRowClick = (item: NewsItem) => {
     setSelectedItem(item);
@@ -65,6 +97,39 @@ export default function NewsItemsPage() {
   const getSourceName = (sourceId: number) => {
     const source = sources?.find((s) => Number(s.id) === sourceId);
     return source?.name || `#${sourceId}`;
+  };
+
+  const getProcessingStatus = (item: NewsItem) => {
+    if (!item.processing_results || item.processing_results.length === 0) {
+      return { icon: InfoIcon, color: 'gray', text: 'Not processed', count: 0 };
+    }
+
+    const processed = item.processing_results.filter(r => r.processed).length;
+    const total = item.processing_results.length;
+    const anyPositive = item.processing_results.some(r => r.result === true);
+
+    if (processed === 0) {
+      return { icon: InfoIcon, color: 'gray', text: 'Pending', count: total };
+    } else if (processed < total) {
+      return { icon: WarningIcon, color: 'yellow', text: `Processing ${processed}/${total}`, count: total };
+    } else if (anyPositive) {
+      return { icon: CheckCircleIcon, color: 'green', text: `Matched`, count: total };
+    } else {
+      return { icon: InfoIcon, color: 'blue', text: `Processed`, count: total };
+    }
+  };
+
+  const getAIOutput = (item: NewsItem) => {
+    if (!item.processing_results || item.processing_results.length === 0) {
+      return '-';
+    }
+
+    const results = item.processing_results
+      .filter(r => r.processed && r.result === true)
+      .map(r => r.ai_response?.thinking || 'Match')
+      .join('; ');
+
+    return results || 'No matches';
   };
 
   return (
@@ -115,7 +180,7 @@ export default function NewsItemsPage() {
           </Alert>
         )}
 
-        {!isLoading && newsItems && (
+        {!isLoading && newsItemsWithResults && (
           <>
             <Box overflowX="auto">
               <Table variant="simple">
@@ -125,29 +190,51 @@ export default function NewsItemsPage() {
                     <Th>Title</Th>
                     <Th>Source</Th>
                     <Th>Published</Th>
+                    <Th>Status</Th>
+                    <Th maxW="300px">AI Output</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
-                  {newsItems.map((item) => (
-                    <Tr
-                      key={item.id}
-                      onClick={() => handleRowClick(item)}
-                      cursor="pointer"
-                      _hover={{ bg: 'gray.50' }}
-                    >
-                      <Td>{item.id}</Td>
-                      <Td maxW="300px" isTruncated>
-                        {item.title || '(No title)'}
-                      </Td>
-                      <Td>{getSourceName(item.source_id)}</Td>
-                      <Td>{formatDate(item.published_at)}</Td>
-                    </Tr>
-                  ))}
+                  {newsItemsWithResults.map((item) => {
+                    const status = getProcessingStatus(item);
+                    return (
+                      <Tr
+                        key={item.id}
+                        onClick={() => handleRowClick(item)}
+                        cursor="pointer"
+                        _hover={{ bg: 'gray.50' }}
+                      >
+                        <Td>{item.id}</Td>
+                        <Td maxW="300px" isTruncated>
+                          {item.title || '(No title)'}
+                        </Td>
+                        <Td>{getSourceName(item.source_id)}</Td>
+                        <Td>{formatDate(item.published_at)}</Td>
+                        <Td>
+                          <Tooltip label={status.text}>
+                            <HStack spacing={1}>
+                              <Icon as={status.icon} color={`${status.color}.500`} />
+                              {status.count > 0 && (
+                                <Badge colorScheme={status.color} fontSize="xs">
+                                  {status.count}
+                                </Badge>
+                              )}
+                            </HStack>
+                          </Tooltip>
+                        </Td>
+                        <Td maxW="300px" isTruncated>
+                          <Text fontSize="sm" color="gray.600">
+                            {getAIOutput(item)}
+                          </Text>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
                 </Tbody>
               </Table>
             </Box>
 
-            {newsItems.length === 0 && (
+            {newsItemsWithResults.length === 0 && (
               <Center py={10}>
                 <Text color="gray.500">No news items found</Text>
               </Center>
@@ -155,7 +242,7 @@ export default function NewsItemsPage() {
 
             <HStack justify="space-between" pt={4}>
               <Text fontSize="sm" color="gray.600">
-                Showing {skip + 1}-{skip + newsItems.length}
+                Showing {skip + 1}-{skip + newsItemsWithResults.length}
               </Text>
               <HStack>
                 <Button
@@ -168,7 +255,7 @@ export default function NewsItemsPage() {
                 <Button
                   size="sm"
                   onClick={handleNext}
-                  isDisabled={newsItems.length < limit}
+                  isDisabled={newsItemsWithResults.length < limit}
                 >
                   Next
                 </Button>

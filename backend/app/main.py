@@ -12,6 +12,7 @@ from app.db import engine
 from app.api import api_router
 from app.producers.rss import rss_producer_job
 from app.producers.telegram import telegram_producer_job
+from app.ai.consumer import run_ai_consumer_job
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +38,15 @@ async def lifespan(app: FastAPI):
         id="rss_producer",
         name="RSS Feed Producer",
         replace_existing=True,
-        max_instances=1
+        max_instances=1,
+    )
+    scheduler.add_job(
+        run_ai_consumer_job,
+        trigger=IntervalTrigger(minutes=1),
+        id="ai_consumer",
+        name="AI Consumer Job",
+        replace_existing=True,
+        max_instances=1,
     )
     telegram_producer_task = asyncio.create_task(telegram_producer_job(
         api_id=settings.BACKEND_TG_API_ID,

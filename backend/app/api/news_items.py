@@ -43,7 +43,7 @@ async def list_news_items(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
-    """List news items with optional filters"""
+    """List news items with optional filters, sorted by newest first"""
     # Build filter params
     filters = {}
     if source_id is not None:
@@ -59,6 +59,8 @@ async def list_news_items(
         limit=limit,
         schema_to_select=NewsItemRead,
         return_as_model=True,
+        sort_columns=["id"],
+        sort_orders=["desc"],
         **filters
     )
     return items["data"]

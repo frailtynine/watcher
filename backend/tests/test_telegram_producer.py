@@ -117,6 +117,9 @@ class TestTelegramProducer:
         """Test parsing a message without text returns None."""
         message = Mock(spec=Message)
         message.text = None
+        message.message = None  # Also set .message attribute
+        message.media = None  # Also set .media attribute
+        message.id = 123  # Set id for logging
 
         item = telegram_producer._parse_message(telegram_source, message)
         assert item is None
