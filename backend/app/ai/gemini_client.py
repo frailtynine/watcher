@@ -1,7 +1,6 @@
 """Gemini API client for news processing."""
-
+import json
 import logging
-from typing import Optional
 from dataclasses import dataclass
 
 import google.genai as genai
@@ -13,8 +12,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ProcessingResult:
     """Result of processing a news item."""
-
-    news_id: int
     result: bool
     thinking: str
     tokens_used: int
@@ -23,20 +20,21 @@ class ProcessingResult:
 class GeminiClient:
     """Client for interacting with Gemini API."""
 
-    MODEL_NAME = "gemini-2.0-flash-lite"
+    MODEL_NAME = "gemini-2.5-flash-lite"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = MODEL_NAME):
         """Initialize Gemini client with API key.
 
         Args:
             api_key: Google API key for Gemini
+            model_name: Name of the Gemini model to use
         """
+        self.model_name = model_name
         self.api_key = api_key
         self.client = genai.Client(api_key=api_key)
 
     async def process_news(
         self,
-        news_id: int,
         title: str,
         content: str,
         prompt: str
@@ -44,7 +42,6 @@ class GeminiClient:
         """Process news item against a prompt using Gemini.
 
         Args:
-            news_id: ID of the news item
             title: News item title
             content: News item content
             prompt: User-defined prompt for filtering
@@ -59,11 +56,10 @@ class GeminiClient:
         user_message = self._build_user_message(title, content)
 
         response = self.client.models.generate_content(
-            model=self.MODEL_NAME,
+            model=self.model_name,
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                temperature=0.1,
                 response_mime_type="application/json",
                 response_schema={
                     "type": "object",
@@ -77,13 +73,11 @@ class GeminiClient:
         )
 
         # Parse response
-        import json
         result_text = response.text
         result_data = json.loads(result_text)
         tokens_used = self._count_tokens(response)
 
         return ProcessingResult(
-            news_id=news_id,
             result=result_data.get("result", False),
             thinking=result_data.get("thinking", ""),
             tokens_used=tokens_used
@@ -99,11 +93,11 @@ class GeminiClient:
             Complete system instruction
         """
         return (
-            f"You are a news filter assistant. "
+            f"You are a news monitoring assistant. "
             f"Your task is to analyze news articles and determine "
-            f"if they match the following criteria:\n\n{user_prompt}\n\n"
+            f"if they match the following news filter:\n\n{user_prompt}\n\n"
             f"Return a JSON object with:\n"
-            f"- 'result': true if the news matches the criteria, "
+            f"- 'result': true if the news matches the filter, "
             f"false otherwise\n"
             f"- 'thinking': brief explanation of your decision"
         )

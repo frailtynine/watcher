@@ -16,6 +16,8 @@ from app.db.database import get_async_session
 class TelegramProducer(BaseProducer):
     """Producer for Telegram channels."""
 
+    RECONNECT_DELAY_SECONDS = 300
+
     def __init__(
         self,
         api_id: str,
@@ -114,11 +116,26 @@ class TelegramProducer(BaseProducer):
             NewsItem instance or None
         """
         # Skip messages without text
-        if not message.text:
+        text = None
+        if message.text:
+            text = message.text.strip()
+        elif message.message:  # Some messages use .message instead of .text
+            text = message.message.strip()
+        elif hasattr(message, 'caption') and message.caption:
+            text = message.caption.strip()
+        elif message.media:
+            # Media without text - use media type as placeholder
+            media_type = type(message.media).__name__
+            text = f"[{media_type}]"
+
+        # Skip if no content at all
+        if not text:
+            self.logger.debug(
+                f"Skipping message {message.id} - no text or caption"
+            )
             return None
 
         # Use message text as both title and content
-        text = message.text.strip()
         title = text[:100] + ("..." if len(text) > 100 else "")
         content = text
 
@@ -166,8 +183,7 @@ class TelegramProducer(BaseProducer):
     ) -> None:
         """Handle new Telegram message event."""
         self.logger.info(
-            f"Received new message from {event.chat.username}: "
-            f"{event.message.text[:50]}..."
+            f"Received new message from {event.chat.username}"
         )
         matching_source = None
         for source in self.sources:
@@ -213,7 +229,6 @@ class TelegramProducer(BaseProducer):
         This method runs indefinitely, watching for updates from all active
         Telegram sources.
         """
-
         while True:
             try:
                 self.sources = await self.get_sources(
@@ -231,13 +246,14 @@ class TelegramProducer(BaseProducer):
                     f"Starting Telegram client for {len(self.sources)} sources"
                 )
                 async with client:
+                    await client.catch_up()
                     await asyncio.wait_for(
-                            client.run_until_disconnected(),
-                            timeout=20,
-                        )
+                        client.run_until_disconnected(),
+                        timeout=self.RECONNECT_DELAY_SECONDS
+                    )
             except asyncio.TimeoutError:
-                self.logger.warning(
-                    "Restarting Telegram client..."
+                self.logger.info(
+                    "Reloading Telegram sources after timeout..."
                 )
             except Exception as e:
                 self.logger.error(

@@ -38,7 +38,7 @@ async def test_gemini_client_initialization():
     """Test Gemini client initializes correctly."""
     client = GeminiClient(api_key="test-key-123")
     assert client.api_key == "test-key-123"
-    assert client.MODEL_NAME == "gemini-2.0-flash-lite"
+    assert client.MODEL_NAME == "gemini-2.5-flash-lite"
 
 
 @pytest.mark.asyncio
@@ -50,14 +50,12 @@ async def test_process_news_success(gemini_client, mock_gemini_response):
         return_value=mock_gemini_response
     ):
         result = await gemini_client.process_news(
-            news_id=123,
             title="Test Article",
             content="This is test content",
             prompt="Find articles about technology"
         )
 
     assert isinstance(result, ProcessingResult)
-    assert result.news_id == 123
     assert result.result is True
     assert result.thinking == "This news matches the criteria"
     assert result.tokens_used == 150  # 100 + 50
@@ -80,13 +78,11 @@ async def test_process_news_negative_result(gemini_client):
         return_value=negative_response
     ):
         result = await gemini_client.process_news(
-            news_id=456,
             title="Unrelated Article",
             content="Content about cooking",
             prompt="Find articles about technology"
         )
 
-    assert result.news_id == 456
     assert result.result is False
     assert result.thinking == "Does not match criteria"
     assert result.tokens_used == 110
@@ -98,7 +94,7 @@ async def test_build_system_instruction(gemini_client):
     prompt = "Find news about AI and machine learning"
     instruction = gemini_client._build_system_instruction(prompt)
 
-    assert "news filter assistant" in instruction
+    assert "news monitoring assistant" in instruction
     assert prompt in instruction
     assert "result" in instruction
     assert "thinking" in instruction
@@ -148,7 +144,6 @@ async def test_process_news_with_api_error(gemini_client):
     ):
         with pytest.raises(Exception, match="API Error"):
             await gemini_client.process_news(
-                news_id=789,
                 title="Test",
                 content="Content",
                 prompt="Prompt"
@@ -169,7 +164,6 @@ async def test_process_news_with_missing_fields(gemini_client):
         return_value=incomplete_response
     ):
         result = await gemini_client.process_news(
-            news_id=999,
             title="Test",
             content="Content",
             prompt="Prompt"

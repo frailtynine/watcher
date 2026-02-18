@@ -64,6 +64,7 @@ export interface NewsItem {
   raw_data: any | null;
   created_at: string;
   updated_at: string;
+  processing_results?: NewsItemNewsTask[];
 }
 
 export interface NewsItemNewsTask {

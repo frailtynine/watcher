@@ -48,7 +48,10 @@ async def test_create_news_task_empty_name(client: AsyncClient, auth_headers: di
     assert response.status_code == 422
 
 
-async def test_create_news_task_missing_prompt(client: AsyncClient, auth_headers: dict):
+async def test_create_news_task_missing_prompt(
+    client: AsyncClient,
+    auth_headers: dict
+):
     """Test creating task fails without prompt."""
     response = await client.post(
         "/api/news-tasks/",

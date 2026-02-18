@@ -1,19 +1,22 @@
 """AI consumer for processing news items."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
+import asyncio
 
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gemini_client import GeminiClient
+from app.ai.gemini_client import GeminiClient, ProcessingResult
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
 from app.models.source_news_task import SourceNewsTask
 from app.models.user import User
 from app.models.utils import utcnow_naive
+from app.core.config import settings
+from app.db.database import get_async_session
 
 logger = logging.getLogger(__name__)
 
@@ -27,46 +30,50 @@ class AIConsumer:
 
     async def process_user_news(
         self,
-        db: AsyncSession,
-        user: User
+        user_id: int
     ) -> dict:
         """Process all unprocessed news for a user's active tasks.
 
         Args:
-            db: Database session
-            user: User instance
+            user_id: User ID
 
         Returns:
             Dict with processing statistics
         """
-        api_key = self._get_user_api_key(user)
-        if not api_key:
-            self.logger.warning(
-                f"User {user.id} has no Gemini API key configured"
-            )
-            return {"processed": 0, "errors": 0}
+        async for db in get_async_session():
+            stmt = select(User).where(User.id == user_id)
+            result = await db.execute(stmt)
+            user: User = result.scalar_one_or_none()
 
-        client = GeminiClient(api_key=api_key)
-        tasks = await self._get_active_tasks(db, user.id)
+            if not user:
+                self.logger.warning(f"User with ID {user_id} not found")
+                return {"processed": 0, "errors": 0}
+            api_key = self._get_user_api_key(user)
+            if not api_key:
+                return {"processed": 0, "errors": 0}
 
-        total_processed = 0
-        total_errors = 0
+            client = GeminiClient(api_key=api_key)
+            tasks = await self._get_active_tasks(db, user.id)
 
-        for task in tasks:
-            stats = await self._process_task_news(db, client, task)
-            total_processed += stats["processed"]
-            total_errors += stats["errors"]
+            total_processed = 0
+            total_errors = 0
 
-        return {
-            "processed": total_processed,
-            "errors": total_errors
-        }
+            for task in tasks:
+                stats = await self._process_task_news(db, client, task)
+                total_processed += stats["processed"]
+                total_errors += stats["errors"]
+            await db.commit()
+
+            return {
+                "processed": total_processed,
+                "errors": total_errors
+            }
 
     async def _process_task_news(
         self,
         db: AsyncSession,
         client: GeminiClient,
-        task: NewsTask
+        task: NewsTask,
     ) -> dict:
         """Process unprocessed news items for a specific task.
 
@@ -76,38 +83,78 @@ class AIConsumer:
             task: NewsTask instance
 
         Returns:
-            Dict with processing statistics
+            Dict with processing statistics: {"processed": int, "errors": int}
         """
         news_items = await self._get_unprocessed_news(db, task)
-        processed = 0
-        errors = 0
 
+        if not news_items:
+            return {"processed": 0, "errors": 0}
+
+        tasks = []
         for news_item in news_items:
-            try:
-                result = await client.process_news(
-                    news_id=news_item.id,
-                    title=news_item.title,
-                    content=news_item.content,
-                    prompt=task.prompt
+            tasks.append(
+                self._process_task_news_concurrent(client, news_item, task, db)
+            )
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        try:
+            await db.commit()
+        except Exception as e:
+            self.logger.error(
+                f"Error committing results for task {task.id}: {e}",
+                exc_info=True
                 )
+            await db.rollback()
+            # Count all as errors if commit fails
+            return {"processed": 0, "errors": len(news_items)}
 
-                await self._save_result(db, news_item.id, task.id, result)
-                processed += 1
 
-                self.logger.debug(
-                    f"Processed news {news_item.id} with task {task.id}: "
-                    f"result={result.result}"
-                )
-
-            except Exception as e:
-                errors += 1
-                self.logger.error(
-                    f"Error processing news {news_item.id} "
-                    f"with task {task.id}: {e}",
-                    exc_info=True
-                )
-
+        # Count successes and errors
+        processed = sum(
+            1 for r in results if r and not isinstance(r, Exception)
+        )
+        errors = sum(
+            1 for r in results if isinstance(r, Exception) or r is None
+        )
+ 
         return {"processed": processed, "errors": errors}
+
+    async def _process_task_news_concurrent(
+        self,
+        client: GeminiClient,
+        news_item: NewsItem,
+        task: NewsTask,
+        db: AsyncSession
+    ) -> ProcessingResult | None:
+        """Process a single news item concurrently.
+
+        Args:
+            client: Gemini client
+            news_item: NewsItem instance
+            task: NewsTask instance
+        Returns:
+            ProcessingResult instance or None if error occurs
+        """
+        try:
+            result = await client.process_news(
+                title=news_item.title,
+                content=news_item.content,
+                prompt=task.prompt
+            )
+
+            await self._save_result(db, news_item, task, result)
+            self.logger.debug(
+                f"Processed news {news_item.id} with task {task.id}: "
+                f"result={result.result}"
+            )
+            return result
+        except Exception as e:
+            self.logger.error(
+                f"Error processing news {news_item.id} concurrently: {e}",
+                exc_info=True
+            )
+            return None
 
     async def _get_active_tasks(
         self,
@@ -130,7 +177,7 @@ class AIConsumer:
             )
         )
         result = await db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
 
     async def _get_unprocessed_news(
         self,
@@ -151,7 +198,10 @@ class AIConsumer:
         # Get sources linked to this task
         stmt = (
             select(NewsItem)
-            .join(SourceNewsTask, NewsItem.source_id == SourceNewsTask.source_id)
+            .join(
+                SourceNewsTask,
+                NewsItem.source_id == SourceNewsTask.source_id
+            )
             .outerjoin(
                 NewsItemNewsTask,
                 and_(
@@ -169,32 +219,32 @@ class AIConsumer:
                     )
                 )
             )
-            .distinct()
+            .distinct(NewsItem.id)
         )
 
         result = await db.execute(stmt)
-        return list(result.scalars().all())
+        return result.scalars().all()
 
     async def _save_result(
         self,
         db: AsyncSession,
-        news_item_id: int,
-        news_task_id: int,
+        news_item: NewsItem,
+        task: NewsTask,
         result
     ) -> None:
         """Save processing result to database.
 
         Args:
             db: Database session
-            news_item_id: NewsItem ID
-            news_task_id: NewsTask ID
+            news_item: NewsItem instance
+            task: NewsTask instance
             result: ProcessingResult instance
         """
         # Check if record exists
         stmt = select(NewsItemNewsTask).where(
             and_(
-                NewsItemNewsTask.news_item_id == news_item_id,
-                NewsItemNewsTask.news_task_id == news_task_id
+                NewsItemNewsTask.news_item_id == news_item.id,
+                NewsItemNewsTask.news_task_id == task.id
             )
         )
         existing = await db.execute(stmt)
@@ -215,16 +265,14 @@ class AIConsumer:
         else:
             # Create new record
             record = NewsItemNewsTask(
-                news_item_id=news_item_id,
-                news_task_id=news_task_id,
+                news_item_id=news_item.id,
+                news_task_id=task.id,
                 processed=True,
                 result=result.result,
                 processed_at=utcnow_naive(),
                 ai_response=ai_response
             )
             db.add(record)
-
-        await db.commit()
 
     def _get_user_api_key(self, user: User) -> Optional[str]:
         """Extract Gemini API key from user settings.
@@ -236,5 +284,21 @@ class AIConsumer:
             API key or None if not configured
         """
         if not user.settings:
-            return None
+            return settings.BACKEND_GEMINI_API_KEY
         return user.settings.get("gemini_api_key")
+
+
+async def run_ai_consumer_job():
+    """Run AI consumer job for all active users."""
+    consumer = AIConsumer()
+    async for users_db_session in get_async_session():
+        # Get all active users
+        stmt = select(User.id).where(User.is_active.is_(True))
+        result = await users_db_session.execute(stmt)
+        user_ids = result.scalars().all()
+
+    user_tasks = []
+    for user_id in user_ids:
+        user_tasks.append(consumer.process_user_news(user_id))
+    results = await asyncio.gather(*user_tasks)
+    logger.info(results)

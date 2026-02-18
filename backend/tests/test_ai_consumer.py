@@ -57,44 +57,47 @@ async def test_news_item(db_session_maker, test_source):
         return news_item
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_user_api_key(ai_consumer, mock_user):
     """Test extracting API key from user settings."""
     api_key = ai_consumer._get_user_api_key(mock_user)
     assert api_key == "test-api-key"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_user_api_key_missing(ai_consumer, mock_user_no_key):
-    """Test handling missing API key."""
+    """Test handling missing API key - should fallback to system key."""
     api_key = ai_consumer._get_user_api_key(mock_user_no_key)
-    assert api_key is None
+    # Should return system-wide API key as fallback
+    assert api_key is not None
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_user_api_key_no_settings(ai_consumer):
-    """Test handling user with no settings."""
+    """Test handling user with no settings - should fallback to system key."""
     user = MagicMock(spec=User)
     user.settings = None
     api_key = ai_consumer._get_user_api_key(user)
-    assert api_key is None
+    # Should return system-wide API key as fallback
+    assert api_key is not None
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_active_tasks(
     ai_consumer,
-    db_session,
+    db_session_maker,
     test_user,
     test_news_task
 ):
     """Test fetching active tasks for a user."""
-    tasks = await ai_consumer._get_active_tasks(db_session, test_user.id)
-    assert len(tasks) == 1
-    assert tasks[0].id == test_news_task.id
-    assert tasks[0].active is True
+    async with db_session_maker() as session:
+        tasks = await ai_consumer._get_active_tasks(session, test_user.id)
+        assert len(tasks) == 1
+        assert tasks[0].id == test_news_task.id
+        assert tasks[0].active is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_active_tasks_excludes_inactive(
     ai_consumer,
     db_session_maker,
@@ -127,7 +130,7 @@ async def test_get_active_tasks_excludes_inactive(
         assert tasks[0].name == "Active Task"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_get_unprocessed_news(
     ai_consumer,
     db_session_maker,
@@ -149,7 +152,7 @@ async def test_get_unprocessed_news(
             source_id=test_source.id,
             title="Recent News",
             content="Recent content",
-            published_at=datetime.utcnow() - timedelta(hours=2),
+            published_at=datetime.now() - timedelta(hours=2),
         )
         session.add(recent_item)
 
@@ -158,18 +161,20 @@ async def test_get_unprocessed_news(
             source_id=test_source.id,
             title="Old News",
             content="Old content",
-            published_at=datetime.utcnow() - timedelta(hours=5),
+            published_at=datetime.now() - timedelta(hours=5),
         )
         session.add(old_item)
 
         await session.commit()
-        await session.refresh(test_news_task)
+
+        # Merge the task into this session
+        task_in_session = await session.merge(test_news_task)
 
         # Fetch unprocessed news
         consumer = AIConsumer()
         news_items = await consumer._get_unprocessed_news(
             session,
-            test_news_task
+            task_in_session
         )
 
         # Should only get recent item
@@ -177,36 +182,66 @@ async def test_get_unprocessed_news(
         assert news_items[0].title == "Recent News"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_save_result_creates_new_record(
     ai_consumer,
     db_session_maker,
-    test_news_item,
-    test_news_task
+    test_user
 ):
     """Test saving result creates new record."""
-    result = ProcessingResult(
-        news_id=test_news_item.id,
-        result=True,
-        thinking="Matches criteria",
-        tokens_used=150
-    )
-
+    # Create test data
     async with db_session_maker() as session:
+        source = Source(
+            user_id=test_user.id,
+            name="Test Source",
+            source="https://test.com/feed",
+            type=SourceType.RSS
+        )
+        session.add(source)
+        await session.commit()
+        await session.refresh(source)
+
+        news_item = NewsItem(
+            source_id=source.id,
+            title="Test News",
+            content="Test content",
+            published_at=datetime.now()
+        )
+        session.add(news_item)
+        
+        news_task = NewsTask(
+            user_id=test_user.id,
+            name="Test Task",
+            prompt="Test prompt",
+            active=True
+        )
+        session.add(news_task)
+        await session.commit()
+        await session.refresh(news_item)
+        await session.refresh(news_task)
+
+        result = ProcessingResult(
+            result=True,
+            thinking="Matches criteria",
+            tokens_used=150
+        )
+
         consumer = AIConsumer()
         await consumer._save_result(
             session,
-            test_news_item.id,
-            test_news_task.id,
+            news_item,
+            news_task,
             result
         )
+        # Commit happens at higher level now
+        await session.commit()
 
     # Verify record was created
     async with db_session_maker() as session:
         from sqlalchemy import select
         stmt = select(NewsItemNewsTask).where(
-            NewsItemNewsTask.news_item_id == test_news_item.id,
-            NewsItemNewsTask.news_task_id == test_news_task.id
+            NewsItemNewsTask.news_item_id == news_item.id,
+            NewsItemNewsTask.news_task_id == news_task.id
         )
         db_result = await session.execute(stmt)
         record = db_result.scalar_one()
@@ -217,19 +252,48 @@ async def test_save_result_creates_new_record(
         assert record.ai_response["tokens_used"] == 150
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_save_result_updates_existing_record(
     ai_consumer,
     db_session_maker,
-    test_news_item,
-    test_news_task
+    test_user
 ):
     """Test saving result updates existing record."""
-    # Create initial record
+    # Create test data
     async with db_session_maker() as session:
+        source = Source(
+            user_id=test_user.id,
+            name="Test Source",
+            source="https://test.com/feed",
+            type=SourceType.RSS
+        )
+        session.add(source)
+        await session.commit()
+        await session.refresh(source)
+
+        news_item = NewsItem(
+            source_id=source.id,
+            title="Test News",
+            content="Test content",
+            published_at=datetime.now()
+        )
+        session.add(news_item)
+        
+        news_task = NewsTask(
+            user_id=test_user.id,
+            name="Test Task",
+            prompt="Test prompt",
+            active=True
+        )
+        session.add(news_task)
+        await session.commit()
+        await session.refresh(news_item)
+        await session.refresh(news_task)
+
+        # Create initial record
         initial_record = NewsItemNewsTask(
-            news_item_id=test_news_item.id,
-            news_task_id=test_news_task.id,
+            news_item_id=news_item.id,
+            news_task_id=news_task.id,
             processed=False,
             result=None
         )
@@ -238,7 +302,6 @@ async def test_save_result_updates_existing_record(
 
     # Update with processing result
     result = ProcessingResult(
-        news_id=test_news_item.id,
         result=False,
         thinking="Does not match",
         tokens_used=100
@@ -246,19 +309,23 @@ async def test_save_result_updates_existing_record(
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
+        item_in_session = await session.merge(news_item)
+        task_in_session = await session.merge(news_task)
         await consumer._save_result(
             session,
-            test_news_item.id,
-            test_news_task.id,
+            item_in_session,
+            task_in_session,
             result
         )
+        # Commit happens at higher level now
+        await session.commit()
 
     # Verify record was updated
     async with db_session_maker() as session:
         from sqlalchemy import select
         stmt = select(NewsItemNewsTask).where(
-            NewsItemNewsTask.news_item_id == test_news_item.id,
-            NewsItemNewsTask.news_task_id == test_news_task.id
+            NewsItemNewsTask.news_item_id == news_item.id,
+            NewsItemNewsTask.news_task_id == news_task.id
         )
         db_result = await session.execute(stmt)
         record = db_result.scalar_one()
@@ -268,23 +335,22 @@ async def test_save_result_updates_existing_record(
         assert record.ai_response["thinking"] == "Does not match"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_user_news_no_api_key(
     ai_consumer,
-    db_session,
+    db_session_maker,
     mock_user_no_key
 ):
     """Test processing handles missing API key."""
     result = await ai_consumer.process_user_news(
-        db_session,
-        mock_user_no_key
+        mock_user_no_key.id
     )
 
     assert result["processed"] == 0
     assert result["errors"] == 0
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_task_news_with_error(
     ai_consumer,
     db_session_maker,
@@ -317,18 +383,18 @@ async def test_process_task_news_with_error(
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
-        await session.refresh(test_news_task)
+        task_in_session = await session.merge(test_news_task)
         stats = await consumer._process_task_news(
             session,
             mock_client,
-            test_news_task
+            task_in_session
         )
 
         assert stats["processed"] == 0
         assert stats["errors"] == 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_process_task_news_success(
     ai_consumer,
     db_session_maker,
@@ -358,7 +424,6 @@ async def test_process_task_news_success(
     mock_client = MagicMock()
     mock_client.process_news = AsyncMock(
         return_value=ProcessingResult(
-            news_id=news_id,
             result=True,
             thinking="Test thinking",
             tokens_used=200
@@ -367,11 +432,11 @@ async def test_process_task_news_success(
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
-        await session.refresh(test_news_task)
+        task_in_session = await session.merge(test_news_task)
         stats = await consumer._process_task_news(
             session,
             mock_client,
-            test_news_task
+            task_in_session
         )
 
         assert stats["processed"] == 1

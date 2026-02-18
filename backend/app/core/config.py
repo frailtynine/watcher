@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     BACKEND_TG_SESSION_STRING: str
     BACKEND_TG_API_ID: int
     BACKEND_TG_API_HASH: str
+    BACKEND_GEMINI_API_KEY: str
 
 
 settings = Settings()
