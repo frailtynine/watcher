@@ -10,7 +10,7 @@ from app.schemas import SourceCreate, SourceRead, SourceUpdate
 from app.api.auth import current_active_user
 from app.models import User
 from app.core import settings
-from app.validators import validate_telegram_channel
+from app.validators import validate_telegram_channel, validate_rss_feed
 
 router = APIRouter()
 
@@ -34,6 +34,8 @@ async def create_source(
 ):
     """Create a new source for the current user"""
     from app.schemas.source import SourceCreateInternal
+
+    # Validate based on source type
     if source.type == SourceType.TELEGRAM:
         # Validate Telegram channel before creating source
         validation_result = await validate_telegram_channel(
@@ -50,6 +52,33 @@ async def create_source(
                     f"{validation_result['error']}"
                 )
             )
+    elif source.type == SourceType.RSS:
+        # Validate RSS feed before creating source
+        validation_result = await validate_rss_feed(url=source.source)
+        if not validation_result["valid"]:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Invalid RSS feed: "
+                    f"{validation_result['error']}"
+                )
+            )
+
+        # Auto-populate name from feed title if name is generic or not provided
+        feed_title = validation_result.get("title")
+        if feed_title and (
+            not source.name or
+            source.name == "My RSS Feed" or
+            len(source.name.strip()) == 0
+        ):
+            # Use feed title as source name
+            source = SourceCreate(
+                name=feed_title,
+                type=source.type,
+                source=source.source,
+                active=source.active
+            )
+
     source_internal = SourceCreateInternal(
         **source.model_dump(),
         user_id=user.id,
