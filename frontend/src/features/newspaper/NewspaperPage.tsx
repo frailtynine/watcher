@@ -7,39 +7,38 @@ import {
   Grid,
   GridItem,
   VStack,
-  HStack,
-  Link,
   Spinner,
   Center,
   Divider,
   Button,
+  Link,
+  useToast,
 } from '@chakra-ui/react';
-import { ArrowBackIcon, ExternalLinkIcon } from '@chakra-ui/icons';
-import { useGetNewspaperQuery, useGetSourcesQuery } from '../../services/api';
-import type { NewspaperItem, Source } from '../../types';
+import { ArrowBackIcon, RepeatIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { useGetNewspaperQuery, useRegenerateNewspaperMutation } from '../../services/api';
+import type { NewspaperItem } from '../../types';
 
 const truncate = (text: string | null, max: number): string => {
   if (!text) return '';
   return text.length > max ? text.slice(0, max) + '…' : text;
 };
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+const formatDate = (iso: string | null): string => {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
 
 interface NewsCardProps {
   item: NewspaperItem;
-  sources: Source[];
   variant: 'large' | 'medium' | 'small';
 }
 
-const NewsCard = ({ item, sources, variant }: NewsCardProps) => {
-  const source = sources.find((s) => Number(s.id) === item.source_id);
-  const sourceName = source?.name ?? `Source #${item.source_id}`;
+const NewsCard = ({ item, variant }: NewsCardProps) => {
+  const title = item.link ? (
+    <Link href={item.link} isExternal color="inherit" _hover={{ textDecoration: 'underline' }}>
+      {item.title} <ExternalLinkIcon mx="2px" boxSize={3} />
+    </Link>
+  ) : item.title;
 
   return (
     <Box
@@ -51,49 +50,40 @@ const NewsCard = ({ item, sources, variant }: NewsCardProps) => {
       display="flex"
       flexDirection="column"
     >
-      <Link
-        href={item.url ?? '#'}
-        isExternal
+      <Text
         fontWeight="bold"
         fontSize={variant === 'large' ? 'xl' : variant === 'medium' ? 'md' : 'sm'}
         lineHeight="1.4"
         mb={2}
-        _hover={{ color: 'blue.600', textDecoration: 'none' }}
         fontFamily="Georgia, serif"
       >
-        {item.title}
-        <ExternalLinkIcon mx="4px" boxSize={3} />
-      </Link>
+        {title}
+      </Text>
 
       {variant !== 'small' && (
         <Text fontSize="sm" color="gray.700" flex="1" mb={3}>
-          {truncate(item.content, variant === 'large' ? 400 : 200)}
+          {truncate(item.summary, variant === 'large' ? 400 : 200)}
         </Text>
       )}
 
-      <HStack fontSize="xs" color="gray.400" mt="auto" spacing={2} flexWrap="wrap">
-        <Text fontWeight="medium" color="gray.600">
-          {sourceName}
+      {(item.source_name || item.pub_date) && (
+        <Text fontSize="xs" color="gray.400" mt="auto">
+          {[item.source_name, item.pub_date ? formatDate(item.pub_date) : null]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
-        {item.published_at && (
-          <>
-            <Text>·</Text>
-            <Text>{formatDate(item.published_at)}</Text>
-          </>
-        )}
-      </HStack>
+      )}
     </Box>
   );
 };
 
 interface NewspaperRowProps {
   items: NewspaperItem[];
-  sources: Source[];
 }
 
-const NewspaperRow = ({ items, sources }: NewspaperRowProps) => {
+const NewspaperRow = ({ items }: NewspaperRowProps) => {
   if (items.length === 1) {
-    return <NewsCard item={items[0]} sources={sources} variant="large" />;
+    return <NewsCard item={items[0]} variant="large" />;
   }
 
   if (items.length === 2) {
@@ -101,7 +91,7 @@ const NewspaperRow = ({ items, sources }: NewspaperRowProps) => {
       <Grid templateColumns="1fr 1fr" gap={4}>
         {items.map((item, i) => (
           <GridItem key={i}>
-            <NewsCard item={item} sources={sources} variant="medium" />
+            <NewsCard item={item} variant="medium" />
           </GridItem>
         ))}
       </Grid>
@@ -112,7 +102,7 @@ const NewspaperRow = ({ items, sources }: NewspaperRowProps) => {
     <Grid templateColumns={`repeat(${items.length}, 1fr)`} gap={3}>
       {items.map((item, i) => (
         <GridItem key={i}>
-          <NewsCard item={item} sources={sources} variant="small" />
+          <NewsCard item={item} variant="small" />
         </GridItem>
       ))}
     </Grid>
@@ -122,12 +112,22 @@ const NewspaperRow = ({ items, sources }: NewspaperRowProps) => {
 export const NewspaperPage = () => {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const {
     data: newspaper,
     isLoading,
     isError,
   } = useGetNewspaperQuery(Number(taskId));
-  const { data: sources = [] } = useGetSourcesQuery();
+  const [regenerate, { isLoading: isRegenerating }] = useRegenerateNewspaperMutation();
+
+  const handleRegenerate = async () => {
+    try {
+      await regenerate(Number(taskId)).unwrap();
+      toast({ title: 'Newspaper regenerated', status: 'success', duration: 3000 });
+    } catch {
+      toast({ title: 'Failed to regenerate', status: 'error', duration: 3000 });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -144,7 +144,16 @@ export const NewspaperPage = () => {
           <Text fontSize="lg" color="gray.500">
             No newspaper available for this task yet.
           </Text>
-          <Button leftIcon={<ArrowBackIcon />} onClick={() => navigate(-1)}>
+          <Button
+            leftIcon={<RepeatIcon />}
+            colorScheme="blue"
+            isLoading={isRegenerating}
+            loadingText="Generating…"
+            onClick={handleRegenerate}
+          >
+            Generate Newspaper
+          </Button>
+          <Button leftIcon={<ArrowBackIcon />} variant="ghost" onClick={() => navigate(-1)}>
             Go back
           </Button>
         </VStack>
@@ -152,24 +161,41 @@ export const NewspaperPage = () => {
     );
   }
 
-  const rows = Object.entries(newspaper.body)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, items]) => items as NewspaperItem[]);
+  const rowMap = new Map<number, NewspaperItem[]>();
+  for (const item of newspaper.body.rows) {
+    const rowNum = item.position[0];
+    if (!rowMap.has(rowNum)) rowMap.set(rowNum, []);
+    rowMap.get(rowNum)!.push(item);
+  }
+  const rows = [...rowMap.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, items]) => items.sort((a, b) => a.position[1] - b.position[1]));
 
   return (
     <Box bg="gray.50" minH="100vh" py={8}>
       <Container maxW="4xl">
         <VStack align="stretch" spacing={0}>
-          <Button
-            leftIcon={<ArrowBackIcon />}
-            variant="ghost"
-            size="sm"
-            alignSelf="flex-start"
-            mb={4}
-            onClick={() => navigate(-1)}
-          >
-            Back
-          </Button>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+            <Button
+              leftIcon={<ArrowBackIcon />}
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+            >
+              Back
+            </Button>
+            <Button
+              leftIcon={<RepeatIcon />}
+              size="sm"
+              colorScheme="blue"
+              variant="outline"
+              isLoading={isRegenerating}
+              loadingText="Regenerating…"
+              onClick={handleRegenerate}
+            >
+              Regenerate
+            </Button>
+          </Box>
 
           <Box textAlign="center" mb={6}>
             <Heading
@@ -195,7 +221,7 @@ export const NewspaperPage = () => {
             <VStack spacing={0} align="stretch">
               {rows.map((items, i) => (
                 <Box key={i}>
-                  <NewspaperRow items={items} sources={sources} />
+                  <NewspaperRow items={items} />
                   {i < rows.length - 1 && (
                     <Divider borderColor="gray.300" my={6} />
                   )}

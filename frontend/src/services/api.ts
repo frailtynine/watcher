@@ -226,6 +226,16 @@ export const api = createApi({
         { type: 'Newspaper', id: taskId },
       ],
     }),
+
+    regenerateNewspaper: builder.mutation<Newspaper, number>({
+      query: (taskId) => ({
+        url: `/newspapers/${taskId}/regenerate`,
+        method: 'POST',
+      }),
+      invalidatesTags: (result, error, taskId) => [
+        { type: 'Newspaper', id: taskId },
+      ],
+    }),
   }),
 });
 
@@ -253,4 +263,5 @@ export const {
   useGetNewsItemQuery,
   useGetNewsItemResultsQuery,
   useGetNewspaperQuery,
+  useRegenerateNewspaperMutation,
 } = api;

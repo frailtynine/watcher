@@ -8,7 +8,8 @@ import asyncio
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gemini_client import GeminiClient, ProcessingResult
+from app.ai.gemini_client import GeminiClient
+from app.ai.base import ProcessingResult
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
@@ -118,15 +119,19 @@ class AIConsumer:
             1 for r in results if isinstance(r, Exception) or r is None
         )
 
-        if processed > 0:
-            try:
-                processor = NewsPaperProcessor(client)
-                await processor.get_newspaper(task)
-            except Exception as e:
-                self.logger.error(
-                    f"Error generating newspaper for task {task.id}: {e}",
-                    exc_info=True
+        # if processed > 0:
+        try:
+            processor = NewsPaperProcessor()
+            for news_item in news_items:
+                await processor.process_newspaper(
+                    news_task=task,
+                    news_item=news_item
                 )
+        except Exception as e:
+            self.logger.error(
+                f"Error generating newspaper for task {task.id}: {e}",
+                exc_info=True
+            )
 
         return {"processed": processed, "errors": errors}
 
