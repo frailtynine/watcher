@@ -4,7 +4,10 @@ from sqlalchemy import select
 
 from app.db import get_async_session
 from app.models.newspaper import Newspaper
+from app.models.news_task import NewsTask
+from app.models.user import User
 from app.schemas.newspaper import NewspaperRead
+from app.api.auth import current_active_user
 
 router = APIRouter()
 
@@ -22,3 +25,28 @@ async def get_newspaper(
     if newspaper is None:
         raise HTTPException(status_code=404, detail="Newspaper not found")
     return newspaper
+
+
+@router.post("/{news_task_id}/regenerate", response_model=NewspaperRead)
+async def regenerate_newspaper(
+    news_task_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    """Delete the existing newspaper and rebuild it from processed news items."""
+    from app.delivery.web import NewsPaperProcessor
+    news_task = await db.get(NewsTask, news_task_id)
+    if news_task is None:
+        raise HTTPException(status_code=404, detail="News task not found")
+
+    existing = await db.execute(
+        select(Newspaper).where(Newspaper.news_task_id == news_task_id)
+    )
+    newspaper = existing.scalar_one_or_none()
+    if newspaper is not None:
+        await db.delete(newspaper)
+        await db.commit()
+
+    processor = NewsPaperProcessor()
+    new_newspaper = await processor.create_newspaper(news_task)
+    return new_newspaper

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 from app.ai.consumer import AIConsumer
-from app.ai.gemini_client import ProcessingResult
+from app.ai.base import ProcessingResult
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask

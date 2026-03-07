@@ -4,7 +4,8 @@ import pytest
 from unittest.mock import patch
 from dataclasses import dataclass
 
-from app.ai.gemini_client import GeminiClient, ProcessingResult
+from app.ai.gemini_client import GeminiClient
+from app.ai.base import ProcessingResult
 
 
 @dataclass
