@@ -6,6 +6,7 @@ from typing import Optional
 import asyncio
 
 from sqlalchemy import select, and_, or_
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gemini_client import GeminiClient
@@ -235,6 +236,7 @@ class AIConsumer:
                 )
             )
             .distinct(NewsItem.id)
+            .options(selectinload(NewsItem.source))
         )
 
         result = await db.execute(stmt)
