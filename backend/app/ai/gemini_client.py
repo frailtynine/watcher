@@ -9,23 +9,7 @@ from app.schemas.newspaper import NewsItemNewspaperAIResponse
 from app.models.newspaper import Newspaper
 
 
-def _fix_schema_for_gemini(schema: dict) -> dict:
-    """Convert tuple prefixItems notation to items — Gemini SDK doesn't support prefixItems."""
-    if isinstance(schema, dict):
-        if "prefixItems" in schema:
-            item_types = schema["prefixItems"]
-            schema = {k: v for k, v in schema.items() if k != "prefixItems"}
-            schema["items"] = item_types[0] if item_types else {}
-        return {k: _fix_schema_for_gemini(v) for k, v in schema.items()}
-    if isinstance(schema, list):
-        return [_fix_schema_for_gemini(item) for item in schema]
-    return schema
-
 logger = logging.getLogger(__name__)
-
-_AI_TITLE_MAX = 200
-_AI_SUMMARY_MAX = 500
-_ROW_MAX_ITEMS = 5
 
 
 class GeminiClient(BaseAIClient):
@@ -53,7 +37,7 @@ class GeminiClient(BaseAIClient):
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=_fix_schema_for_gemini(
+                response_schema=self._fix_schema_for_gemini(
                     NewsItemNewspaperAIResponse.model_json_schema()
                 )
             ),
@@ -91,3 +75,18 @@ class GeminiClient(BaseAIClient):
             usage_metadata.prompt_token_count +
             usage_metadata.candidates_token_count
         )
+
+    def _fix_schema_for_gemini(self, schema: dict) -> dict:
+        """Convert tuple prefixItems notation to items.
+          Gemini SDK doesn't support prefixItems.
+
+        """
+        if isinstance(schema, dict):
+            if "prefixItems" in schema:
+                item_types = schema["prefixItems"]
+                schema = {k: v for k, v in schema.items() if k != "prefixItems"}
+                schema["items"] = item_types[0] if item_types else {}
+            return {k: self._fix_schema_for_gemini(v) for k, v in schema.items()}
+        if isinstance(schema, list):
+            return [self._fix_schema_for_gemini(item) for item in schema]
+        return schema
