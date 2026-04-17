@@ -79,6 +79,8 @@ VITE_API_URL=/api
 docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
+Production compose now stays closer to the source deployment setup: long-running services restart automatically, the frontend receives `VITE_API_URL` during the image build, and PostgreSQL runs the bundled init script on a fresh volume.
+
 ## Project Structure
 
 ```
@@ -184,6 +186,17 @@ make test-user
 ### Frontend Development
 
 The frontend runs with Vite's hot module replacement. Changes to React components will be reflected immediately.
+
+### Testing & Linting
+
+```bash
+make test
+make test-unit FILE=tests/test_models.py
+make test-coverage
+make lint
+```
+
+On a fresh PostgreSQL volume, `docker/postgres/init.sql` creates `newswatcher_test` automatically. If your local database volume already existed before that script was added, recreate it with `make clean` or create the test database manually once in `psql`.
 
 ### Database Management
 
