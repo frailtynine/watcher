@@ -71,6 +71,8 @@ POSTGRES_PASSWORD=your-secure-password
 SECRET_KEY=your-secure-secret-key-min-32-chars
 BACKEND_CORS_ORIGINS=["https://yourdomain.com"]
 ENVIRONMENT=production
+BACKEND_PORT=8000
+FRONTEND_PORT=80
 VITE_API_URL=/api
 ```
 
@@ -79,7 +81,7 @@ VITE_API_URL=/api
 docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
-Production compose now stays closer to the source deployment setup: long-running services restart automatically, the frontend receives `VITE_API_URL` during the image build, and PostgreSQL runs the bundled init script on a fresh volume.
+Production compose now stays closer to the source deployment setup: long-running services restart automatically, the frontend receives `VITE_API_URL` during the image build, PostgreSQL runs the bundled init script on a fresh volume, and nginx resolves upstream ports from environment variables at container start.
 
 ## Project Structure
 
@@ -110,7 +112,7 @@ newswatcher/
 │   ├── package.json
 │   └── Dockerfile
 ├── nginx/
-│   └── nginx.conf            # nginx reverse proxy config
+│   └── nginx.conf.template   # nginx reverse proxy template
 ├── docker-compose.dev.yml    # Development compose
 ├── docker-compose.prod.yml   # Production compose
 ├── Makefile                  # Development commands
@@ -237,8 +239,10 @@ All environment variables are configured in a single `.env` file in the root dir
 - `BACKEND_CORS_ORIGINS` - Allowed CORS origins (JSON array)
 - `ENVIRONMENT` - Environment (development/production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration time (default: 1440 = 24 hours)
+- `BACKEND_PORT` - Backend service port (default: 8000)
 
 ### Frontend
+- `FRONTEND_PORT` - Frontend service port (3000 for dev, set 80 for production compose)
 - `VITE_API_URL` - Backend API URL (use `/api` for production, `http://localhost/api` for dev)
 
 ## Security
@@ -258,8 +262,8 @@ make down
 
 # Check if ports are in use
 lsof -i :80
-lsof -i :8000
-lsof -i :3000
+lsof -i :$BACKEND_PORT
+lsof -i :$FRONTEND_PORT
 ```
 
 **Database connection issues:**
