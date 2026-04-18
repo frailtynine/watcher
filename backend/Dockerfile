@@ -18,7 +18,8 @@ COPY ./alembic.ini ./alembic.ini
 COPY ./create_test_user.py ./create_test_user.py
 
 # Expose port
-EXPOSE 8000
+ENV BACKEND_PORT=8000
+EXPOSE ${BACKEND_PORT}
 
 # Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --reload"]

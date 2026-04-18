@@ -8,5 +8,6 @@ RUN npm install
 COPY . .
 
 # Development - just expose the dev server
-EXPOSE 3000
-CMD ["npm", "run", "dev"]
+ENV FRONTEND_PORT=3000
+EXPOSE ${FRONTEND_PORT}
+CMD ["sh", "-c", "npm run dev -- --host 0.0.0.0 --port ${FRONTEND_PORT}"]
