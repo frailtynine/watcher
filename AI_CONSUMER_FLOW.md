@@ -10,7 +10,8 @@
    │ process_user_news(db, user)│
    └──────────┬───────────────┘
               │
-              ├─ Check user.settings['gemini_api_key']
+              ├─ Read encrypted user.settings['gemini_api_key']
+              ├─ Decrypt value explicitly at consumer use site
               │  └─ If missing: return {"processed": 0, "errors": 0}
               │
               └─ Create GeminiClient(api_key)
@@ -119,7 +120,7 @@ Each item processed independently - errors don't cascade!
 └─────────────────────────────────────────────────────────────────┘
 
 User: test@example.com
-Settings: {"gemini_api_key": "AIza..."}
+Settings in DB: {"gemini_api_key": "<encrypted>"}
 
 Task: "Find news about AI and machine learning"
 Sources: RSS Feed (TechCrunch), RSS Feed (Wired)

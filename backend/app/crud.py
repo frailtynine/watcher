@@ -4,7 +4,8 @@ from app.models import (
     Source,
     SourceNewsTask,
     NewsItem,
-    NewsItemNewsTask
+    NewsItemNewsTask,
+    User
 )
 
 # Create FastCRUD instances for each model
@@ -14,3 +15,4 @@ source_news_task_crud = FastCRUD(SourceNewsTask)
 # Disable automatic updated_at handling to avoid timezone issues
 news_item_crud = FastCRUD(NewsItem, updated_at_column="")
 news_item_news_task_crud = FastCRUD(NewsItemNewsTask)
+user_crud = FastCRUD(User)

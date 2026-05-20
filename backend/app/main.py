@@ -11,7 +11,7 @@ from app.core import settings
 from app.db import engine
 from app.api import api_router
 from app.producers.rss import rss_producer_job
-from app.producers.telegram import telegram_producer_job
+from app.producers.telegram_manager import telegram_manager_job
 from app.ai.consumer import run_ai_consumer_job
 
 logging.basicConfig(
@@ -48,12 +48,10 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         max_instances=1,
     )
-    telegram_producer_task = asyncio.create_task(telegram_producer_job(
-        api_id=settings.BACKEND_TG_API_ID,
-        api_hash=settings.BACKEND_TG_API_HASH,
-        session_string=settings.BACKEND_TG_SESSION_STRING
+    telegram_manager_task = asyncio.create_task(telegram_manager_job(
+        check_interval_seconds=settings.TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS
     ))
-    app.state.telegram_producer_task = telegram_producer_task
+    app.state.telegram_manager_task = telegram_manager_task
     logger.info(
         f"Scheduled RSS producer job to run every "
         f"{settings.RSS_FETCH_INTERVAL_MINUTES} minutes"
@@ -62,11 +60,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup on shutdown
-    telegram_producer_task.cancel()
+    telegram_manager_task.cancel()
     try:
-        await telegram_producer_task
+        await telegram_manager_task
     except asyncio.CancelledError:
-        logger.info("Telegram producer task cancelled successfully")
+        logger.info("Telegram manager task cancelled successfully")
     scheduler.shutdown(wait=True)
     await engine.dispose()
 

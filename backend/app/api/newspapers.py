@@ -33,7 +33,7 @@ async def regenerate_newspaper(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
 ):
-    """Delete the existing newspaper and rebuild it from processed news items."""
+    """Delete and rebuild a newspaper from processed news items."""
     from app.delivery.web import NewsPaperProcessor
     news_task = await db.get(NewsTask, news_task_id)
     if news_task is None:

@@ -86,6 +86,9 @@ export const Navbar = () => {
               </HStack>
             </MenuButton>
             <MenuList>
+              <MenuItem as={RouterLink} to="/settings">
+                Settings
+              </MenuItem>
               <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </MenuList>
           </Menu>

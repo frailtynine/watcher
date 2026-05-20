@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gemini_client import GeminiClient
 from app.ai.base import ProcessingResult
+from app.core.config import settings
+from app.core.encryption import decrypt_value
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
@@ -18,7 +20,6 @@ from app.models.source_news_task import SourceNewsTask
 from app.delivery.web import NewsPaperProcessor
 from app.models.user import User
 from app.models.utils import utcnow_naive
-from app.core.config import settings
 from app.db.database import get_async_session
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,11 @@ class AIConsumer:
     def __init__(self):
         """Initialize AI consumer."""
         self.logger = logger.getChild(self.__class__.__name__)
+
+    @staticmethod
+    def _format_user_context(user: User) -> str:
+        """Build a consistent user context string for logs."""
+        return f"user_id={user.id} email={user.email}"
 
     async def process_user_news(
         self,
@@ -51,24 +57,58 @@ class AIConsumer:
             if not user:
                 self.logger.warning(f"User with ID {user_id} not found")
                 return {"processed": 0, "errors": 0}
+            tasks = await self._get_active_tasks(db, user.id)
+            if not tasks:
+                return {"processed": 0, "errors": 0, "active_tasks": 0}
             api_key = self._get_user_api_key(user)
             if not api_key:
-                return {"processed": 0, "errors": 0}
+                self.logger.warning(
+                    "Skipping AI processing: no Gemini API key configured "
+                    "for %s active_tasks=%s",
+                    self._format_user_context(user),
+                    len(tasks),
+                )
+                return {
+                    "processed": 0,
+                    "errors": 0,
+                    "active_tasks": len(tasks),
+                }
 
             client = GeminiClient(api_key=api_key)
-            tasks = await self._get_active_tasks(db, user.id)
 
             total_processed = 0
+            total_queued = 0
+            total_matched = 0
+            total_rejected = 0
             total_errors = 0
 
             for task in tasks:
-                stats = await self._process_task_news(db, client, task)
+                stats = await self._process_task_news(db, client, task, user)
+                total_queued += stats["queued"]
                 total_processed += stats["processed"]
+                total_matched += stats["matched"]
+                total_rejected += stats["rejected"]
                 total_errors += stats["errors"]
             await db.commit()
 
+            self.logger.info(
+                "Completed AI processing for %s active_tasks=%s queued=%s "
+                "processed=%s matched=%s rejected=%s errors=%s",
+                self._format_user_context(user),
+                len(tasks),
+                total_queued,
+                total_processed,
+                total_matched,
+                total_rejected,
+                total_errors,
+            )
+
             return {
+                "active_tasks": len(tasks),
+                "queued": total_queued,
                 "processed": total_processed,
+                "matched": total_matched,
+                "rejected": total_rejected,
                 "errors": total_errors
             }
 
@@ -77,6 +117,7 @@ class AIConsumer:
         db: AsyncSession,
         client: GeminiClient,
         task: NewsTask,
+        user: User,
     ) -> dict:
         """Process unprocessed news items for a specific task.
 
@@ -84,19 +125,33 @@ class AIConsumer:
             db: Database session
             client: Gemini client
             task: NewsTask instance
+            user: User who owns the task
 
         Returns:
-            Dict with processing statistics: {"processed": int, "errors": int}
+            Dict with processing statistics for the task
         """
         news_items = await self._get_unprocessed_news(db, task)
+        queued = len(news_items)
 
         if not news_items:
-            return {"processed": 0, "errors": 0}
+            return {
+                "queued": 0,
+                "processed": 0,
+                "matched": 0,
+                "rejected": 0,
+                "errors": 0,
+            }
 
         tasks = []
         for news_item in news_items:
             tasks.append(
-                self._process_task_news_concurrent(client, news_item, task, db)
+                self._process_task_news_concurrent(
+                    client,
+                    news_item,
+                    task,
+                    user,
+                    db,
+                )
             )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -105,22 +160,43 @@ class AIConsumer:
             await db.commit()
         except Exception as e:
             self.logger.error(
-                f"Error committing results for task {task.id}: {e}",
+                "Error committing AI results for %s "
+                "task_id=%s "
+                "task_name=%r: %s",
+                self._format_user_context(user),
+                task.id,
+                task.name,
+                e,
                 exc_info=True
-                )
+            )
             await db.rollback()
             # Count all as errors if commit fails
-            return {"processed": 0, "errors": len(news_items)}
+            return {
+                "queued": queued,
+                "processed": 0,
+                "matched": 0,
+                "rejected": 0,
+                "errors": queued,
+            }
 
         # Count successes and errors
-        processed = sum(
-            1 for r in results if r and not isinstance(r, Exception)
+        successful_results = [
+            result
+            for result in results
+            if result and not isinstance(result, Exception)
+        ]
+        processed = len(successful_results)
+        matched = sum(
+            1 for result in successful_results if result.result is True
+        )
+        rejected = sum(
+            1 for result in successful_results if result.result is False
         )
         errors = sum(
-            1 for r in results if isinstance(r, Exception) or r is None
+            1 for result in results
+            if isinstance(result, Exception) or result is None
         )
 
-        # if processed > 0:
         try:
             processor = NewsPaperProcessor()
             for news_item in news_items:
@@ -130,17 +206,43 @@ class AIConsumer:
                 )
         except Exception as e:
             self.logger.error(
-                f"Error generating newspaper for task {task.id}: {e}",
+                "Error generating newspaper for %s "
+                "task_id=%s "
+                "task_name=%r: %s",
+                self._format_user_context(user),
+                task.id,
+                task.name,
+                e,
                 exc_info=True
             )
 
-        return {"processed": processed, "errors": errors}
+        self.logger.info(
+            "Processed task for %s task_id=%s task_name=%r queued=%s "
+            "processed=%s matched=%s rejected=%s errors=%s",
+            self._format_user_context(user),
+            task.id,
+            task.name,
+            queued,
+            processed,
+            matched,
+            rejected,
+            errors,
+        )
+
+        return {
+            "queued": queued,
+            "processed": processed,
+            "matched": matched,
+            "rejected": rejected,
+            "errors": errors,
+        }
 
     async def _process_task_news_concurrent(
         self,
         client: GeminiClient,
         news_item: NewsItem,
         task: NewsTask,
+        user: User,
         db: AsyncSession
     ) -> ProcessingResult | None:
         """Process a single news item concurrently.
@@ -167,7 +269,13 @@ class AIConsumer:
             return result
         except Exception as e:
             self.logger.error(
-                f"Error processing news {news_item.id} concurrently: {e}",
+                "Error processing news_item_id=%s for %s task_id=%s "
+                "task_name=%r: %s",
+                news_item.id,
+                self._format_user_context(user),
+                task.id,
+                task.name,
+                e,
                 exc_info=True
             )
             return None
@@ -300,9 +408,17 @@ class AIConsumer:
         Returns:
             API key or None if not configured
         """
-        if not user.settings:
-            return settings.BACKEND_GEMINI_API_KEY
-        return user.settings.get("gemini_api_key")
+        if user.settings is None:
+            return None
+
+        encrypted_api_key = user.settings.get("gemini_api_key")
+        if not encrypted_api_key:
+            return None
+
+        return decrypt_value(
+            encrypted_api_key,
+            settings.ENCRYPTION_KEY,
+        )
 
 
 async def run_ai_consumer_job():
@@ -318,4 +434,23 @@ async def run_ai_consumer_job():
     for user_id in user_ids:
         user_tasks.append(consumer.process_user_news(user_id))
     results = await asyncio.gather(*user_tasks)
-    logger.info(results)
+
+    logged_results = [
+        result
+        for result in results
+        if result.get("active_tasks", 0) > 0
+    ]
+
+    if not logged_results:
+        return
+
+    logger.info(
+        "AI consumer job finished users=%s queued=%s processed=%s matched=%s "
+        "rejected=%s errors=%s",
+        len(logged_results),
+        sum(result.get("queued", 0) for result in logged_results),
+        sum(result.get("processed", 0) for result in logged_results),
+        sum(result.get("matched", 0) for result in logged_results),
+        sum(result.get("rejected", 0) for result in logged_results),
+        sum(result.get("errors", 0) for result in logged_results),
+    )

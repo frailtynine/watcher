@@ -7,6 +7,7 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.types import Message
 
+
 from app.models.source import Source, SourceType
 from app.models.news_item import NewsItem
 from .base import BaseProducer
@@ -22,7 +23,8 @@ class TelegramProducer(BaseProducer):
         self,
         api_id: str,
         api_hash: str,
-        session_string: str
+        session_string: str,
+        user_id: Optional[int] = None
     ):
         """Initialize Telegram producer.
 
@@ -30,11 +32,13 @@ class TelegramProducer(BaseProducer):
             api_id: Telegram API ID (required)
             api_hash: Telegram API hash (required)
             session_string: Telegram session string (required)
+            user_id: Optional user ID to filter sources (for multi-user setup)
         """
         super().__init__()
         self.api_id = api_id
         self.api_hash = api_hash
         self.session_string = session_string
+        self.user_id = user_id
         self.sources = []
 
     async def fetch(self, source: Source) -> list[NewsItem]:
@@ -231,8 +235,10 @@ class TelegramProducer(BaseProducer):
         """
         while True:
             try:
+                # Get sources - filter by user_id if specified
                 self.sources = await self.get_sources(
-                    source_type=SourceType.TELEGRAM
+                    source_type=SourceType.TELEGRAM,
+                    user_id=self.user_id
                 )
                 client = await self._get_client_with_entities()
                 if not client:
@@ -265,18 +271,14 @@ class TelegramProducer(BaseProducer):
 async def telegram_producer_job(
     api_id: str,
     api_hash: str,
-    session_string: str
+    session_string: str,
+    user_id: Optional[int] = None
 ):
-    """Job to watch Telegram channels for new messages.
-
-    Args:
-        api_id: Telegram API ID
-        api_hash: Telegram API hash
-        session_string: Telegram session string
-    """
+    """Job to watch Telegram channels for new messages."""
     producer = TelegramProducer(
         api_id=api_id,
         api_hash=api_hash,
-        session_string=session_string
+        session_string=session_string,
+        user_id=user_id
     )
     await producer.run_job()

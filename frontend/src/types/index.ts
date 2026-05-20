@@ -1,3 +1,12 @@
+export interface UserSettings {
+  gemini_api_key?: string | boolean | null;
+  telegram_api_id?: string | boolean | null;
+  telegram_api_hash?: string | boolean | null;
+  telegram_session_string?: string | boolean | null;
+  telegram_bot_token?: string | boolean | null;
+  [key: string]: unknown;
+}
+
 export interface NewsTask {
   id: string;
   user_id: string;

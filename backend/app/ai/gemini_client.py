@@ -84,9 +84,13 @@ class GeminiClient(BaseAIClient):
         if isinstance(schema, dict):
             if "prefixItems" in schema:
                 item_types = schema["prefixItems"]
-                schema = {k: v for k, v in schema.items() if k != "prefixItems"}
+                schema = {
+                    k: v for k, v in schema.items() if k != "prefixItems"
+                }
                 schema["items"] = item_types[0] if item_types else {}
-            return {k: self._fix_schema_for_gemini(v) for k, v in schema.items()}
+            return {
+                k: self._fix_schema_for_gemini(v) for k, v in schema.items()
+            }
         if isinstance(schema, list):
             return [self._fix_schema_for_gemini(item) for item in schema]
         return schema

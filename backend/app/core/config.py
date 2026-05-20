@@ -15,10 +15,11 @@ class Settings(BaseSettings):
     # RSS Producer Job Settings
     RSS_FETCH_INTERVAL_MINUTES: int = 1
     RSS_FETCH_CONCURRENCY: int = 50
-    BACKEND_TG_SESSION_STRING: str
-    BACKEND_TG_API_ID: int
-    BACKEND_TG_API_HASH: str
     BACKEND_GEMINI_API_KEY: str
+    ENCRYPTION_KEY: str
+
+    # Telegram Manager Settings
+    TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS: int = 300
 
 
 settings = Settings()

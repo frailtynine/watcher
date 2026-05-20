@@ -218,7 +218,19 @@ make logs
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/jwt/login` - Login (returns JWT token)
 - `POST /api/auth/jwt/logout` - Logout
-- `GET /api/users/me` - Get current user
+- `GET /api/users/me` - Get current user with boolean presence flags for sensitive settings
+- `PATCH /api/users/me` - Update current user settings and encrypt sensitive credentials before save
+
+Sensitive settings are never returned as plaintext. Example response shape:
+
+```json
+{
+  "settings": {
+    "gemini_api_key": true,
+    "telegram_bot_token": true
+  }
+}
+```
 
 ### Documentation
 - `/docs` - Swagger UI
@@ -236,6 +248,7 @@ All environment variables are configured in a single `.env` file in the root dir
 
 ### Backend
 - `SECRET_KEY` - Secret key for JWT tokens (min 32 characters)
+- `ENCRYPTION_KEY` - Fernet key used to encrypt user credentials in `user.settings`
 - `BACKEND_CORS_ORIGINS` - Allowed CORS origins (JSON array)
 - `ENVIRONMENT` - Environment (development/production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration time (default: 1440 = 24 hours)
@@ -251,6 +264,8 @@ All environment variables are configured in a single `.env` file in the root dir
 - JWT tokens for authentication
 - HTTP-only cookies (when implemented)
 - CORS protection
+- Sensitive user settings are encrypted before they are stored in the database
+- `/api/users/me` never returns secret values, only field presence flags like `"gemini_api_key": true`
 - SQL injection protection via SQLAlchemy ORM
 
 ## Troubleshooting

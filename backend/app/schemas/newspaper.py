@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class NewsItemPositionUpdate(BaseModel):
@@ -33,8 +33,7 @@ class NewsItemNewspaper(BaseModel):
             raise ValueError("summary must not be empty")
         return v
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NewspaperBody(BaseModel):

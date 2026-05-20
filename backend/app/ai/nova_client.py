@@ -1,6 +1,5 @@
 """Amazon Nova client for news processing via AWS Bedrock."""
 import asyncio
-import json
 import logging
 from typing import Optional
 

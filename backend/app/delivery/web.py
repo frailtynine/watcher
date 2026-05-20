@@ -111,7 +111,7 @@ class NewsPaperProcessor:
         self,
         news_task: NewsTask,
     ) -> NewspaperBody:
-        """Fetch processed items and build a NewspaperBody by processing each with AI."""
+        """Build a NewspaperBody from processed items using AI."""
         from types import SimpleNamespace
         async for session in get_async_session():
             news_stmt = (
@@ -159,10 +159,11 @@ class NewsPaperProcessor:
             f"for the news item below. Max {_AI_TITLE_MAX} characters.\n"
             "2. Write a summary of no more than 3 sentences. "
             f"Max {_AI_SUMMARY_MAX} characters.\n"
-            "3. Rearrange the news items in the newspaper body"
-            "according to their importance, finding the best place for the new "
-            "item. Keep no more than 10 rows."
-            "The goal is to create a relevant news picture of the last few hours"
+            "3. Rearrange the news items in the newspaper body according to "
+            "their importance, finding the best place for the new "
+            "item. Keep no more than 10 rows. "
+            "The goal is to create a relevant news picture of the last few "
+            "hours"
             " or the day, depending on the news flow. "
             "Feel free to delete old items to make space for new ones or "
             "rearrange the whole layout if needed. \n"
@@ -171,13 +172,16 @@ class NewsPaperProcessor:
             "- Row with 2 items = important but less recent.\n"
             "- Row with 3 to 5 items = everything else.\n"
             "- Never add to a row that already has 5 items.\n\n"
-            "Keep the layout diverse, don't put two rows of two items next to each other. \n"
+            "Keep the layout diverse, don't put two rows of two items next to "
+            "each other. \n"
             "No news items should be ever duplicated or repeated.\n"
             "If the new news item is almost the same as an existing one, "
-            "keep the one that is more recent and relevant, and drop the other.\n\n"
+            "keep the one that is more recent and relevant, and drop the "
+            "other.\n\n"
             "Output instructions:\n"
             "- `new_item_position`: [row, col] where to place the new item.\n"
-            "- `updates`: list of existing items to keep, with updated positions. "
+            "- `updates`: list of existing items to keep, with updated "
+            "positions. "
             "`row_index` is the 0-based index of the item in the `rows` array "
             "of the current layout below (NOT the news_item_id). "
             "Omit items you want to drop.\n\n"

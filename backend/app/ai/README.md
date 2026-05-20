@@ -39,6 +39,7 @@ result = await client.process_news(
 
 Main consumer logic:
 - **Per-user processing**: Creates separate Gemini client for each user's API key
+- **Explicit decryption**: Decrypts the stored Gemini key only where the client is created
 - **Active tasks only**: Only processes tasks marked as `active=True`
 - **Time window**: Only processes news published within last 4 hours
 - **Deduplication**: Skips already-processed item-task combinations
@@ -68,10 +69,12 @@ Results stored in `news_item_news_task` table:
 
 ## Configuration
 
-Users must set their Gemini API key in user settings:
+Users set their Gemini API key through `PATCH /api/users/me`. The backend stores the value encrypted, while `GET /api/users/me` returns only:
 ```json
 {
-  "gemini_api_key": "YOUR_GOOGLE_API_KEY"
+  "settings": {
+    "gemini_api_key": true
+  }
 }
 ```
 
