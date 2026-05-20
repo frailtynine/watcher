@@ -53,7 +53,7 @@ backend/tests/
 ## Key Design Decisions
 
 ### 1. Per-User Processing
-Each user has their own Gemini client with their API key. If a user has no key, processing is skipped with a warning.
+Each user has their own Gemini client with their API key. The key is stored encrypted in `user.settings`, decrypted only at the consumer use site, and if a user has no key processing is skipped with a warning.
 
 ### 2. Error Isolation
 Errors processing one news item don't stop processing others. Each item-task combination is independent.
@@ -80,11 +80,7 @@ Results stored in `NewsItemNewsTask` table with:
 ## How to Use
 
 ### 1. Configure User API Key
-```python
-user.settings = {
-    "gemini_api_key": "YOUR_GOOGLE_API_KEY"
-}
-```
+Use `PATCH /api/users/me` to send plaintext settings updates. The backend encrypts sensitive fields before storing them.
 
 ### 2. Run Consumer
 ```python
@@ -113,11 +109,12 @@ make test
 
 ## API Key Configuration
 
-Users must add their Gemini API key to settings:
+Users add their Gemini API key on the settings page:
 
-**Frontend**: Add settings page with API key input  
-**Backend**: Key stored in `user.settings.gemini_api_key`  
-**Format**: Standard Google API key string
+**Frontend**: sends plaintext updates only for fields the user changed  
+**Backend**: encrypts `user.settings.gemini_api_key` before saving  
+**Read API**: `/api/users/me` returns only a boolean presence flag for the field  
+**Runtime use**: consumer decrypts the value explicitly when building the Gemini client
 
 ## Dependencies
 
@@ -134,6 +131,8 @@ Already included in `pyproject.toml`:
 ## Security Considerations
 
 - ✅ API keys stored encrypted in database (PostgreSQL JSON field)
+- ✅ `/api/users/me` never returns secret values, only presence flags
+- ✅ Keys are decrypted only at the exact backend use sites that need them
 - ✅ Keys never logged or exposed in responses
 - ✅ Per-user isolation (users can't access others' keys)
 - ✅ No API key in source code

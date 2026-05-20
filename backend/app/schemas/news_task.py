@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NewsTaskBase(BaseModel):
@@ -30,5 +30,4 @@ class NewsTaskRead(NewsTaskBase):
     updated_at: datetime
     sources_count: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

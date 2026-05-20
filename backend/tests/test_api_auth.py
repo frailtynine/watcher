@@ -124,3 +124,21 @@ async def test_get_current_user_unauthorized(client: AsyncClient):
     """Test getting current user without auth fails."""
     response = await client.get("/api/users/me")
     assert response.status_code == 401
+
+
+async def test_update_settings(client: AsyncClient, auth_headers: dict):
+    """Test updating user settings."""
+    response = await client.patch(
+        "/api/users/me",
+        headers=auth_headers,
+        json={
+            "settings": {
+                "gemini_api_key": "test-api-key",
+                "telegram_bot_token": "bot-token",
+            }
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["settings"]["gemini_api_key"] is True
+    assert data["settings"]["telegram_bot_token"] is True

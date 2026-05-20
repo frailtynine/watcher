@@ -10,7 +10,7 @@ NewsWatcher is a news monitoring service built with FastAPI (async) backend and 
 
 **User** (`app/models/user.py`)
 - FastAPI-users base model with JWT authentication
-- `settings` JSON field stores user API keys (Gemini, Telegram credentials)
+- `settings` JSON field stores encrypted user credentials (Gemini, Telegram)
 - Primary key: integer ID
 
 **NewsTask** (`app/models/news_task.py`)
@@ -90,6 +90,9 @@ async def rss_producer_job():
 **Authentication** (`app/api/auth.py`)
 - FastAPI-users routes: `/auth/jwt/login`, `/auth/jwt/logout`, `/auth/register`
 - JWT token strategy with Bearer authentication
+- Custom `/api/users/me` routes expose user profile data and handle encrypted settings updates
+- `GET /api/users/me` returns boolean presence flags for sensitive settings fields
+- `PATCH /api/users/me` accepts plaintext credential updates and encrypts them before persistence
 
 **CRUD Endpoints** (using fastCRUD)
 - `/api/news-tasks/*` - Create, read, update, delete news tasks
@@ -105,6 +108,7 @@ All endpoints require authentication (JWT token in Authorization header).
 - Login form → POST `/api/auth/jwt/login` → store token in localStorage
 - RTK Query prepares headers: adds `Authorization: Bearer {token}` to all requests
 - PrivateRoute component protects authenticated pages
+- Settings page reads only credential presence from `/api/users/me` and shows masked placeholders in the UI
 
 **State Management**
 - RTK Query (`@reduxjs/toolkit/query`) for API calls and caching
@@ -114,6 +118,7 @@ All endpoints require authentication (JWT token in Authorization header).
 **Key Pages**
 - `/login` - Login form (Chakra UI)
 - `/signup` - Registration form
+- `/settings` - Manage encrypted Gemini and Telegram credentials
 - `/news-tasks` - List/create/edit news tasks
 - `/sources` - List/create/edit sources
 - Dashboard layout with navigation
@@ -290,7 +295,7 @@ async def get_tasks_for_source(db: AsyncSession, source_id: int) -> list[NewsTas
 - Simpler implementation for SPA architecture
 
 **6. JSON Fields for Extensibility**
-- `User.settings` - API keys, credentials
+- `User.settings` - encrypted API keys and credentials (read API exposes presence only)
 - `NewsItem.settings` - per-item configuration
 - `NewsItem.raw_data` - original feed/message data
 - `NewsItem.ai_response` - full AI processing results
@@ -304,6 +309,7 @@ DATABASE_URL=postgresql+asyncpg://...
 
 # Auth
 SECRET_KEY=your-secret-key
+ENCRYPTION_KEY=your-fernet-key
 
 # Scheduling
 RSS_FETCH_INTERVAL_MINUTES=15
@@ -311,6 +317,20 @@ RSS_FETCH_INTERVAL_MINUTES=15
 # CORS
 BACKEND_CORS_ORIGINS=["http://localhost"]
 ```
+
+**User settings flow**
+- Frontend sends plaintext credentials only on `PATCH /api/users/me`
+- Backend encrypts sensitive fields before saving into `User.settings`
+- Internal services explicitly decrypt only the values they need at use time
+- Read responses expose only presence flags, for example:
+  ```json
+  {
+    "settings": {
+      "gemini_api_key": true,
+      "telegram_api_hash": true
+    }
+  }
+  ```
 
 ## Not Yet Implemented
 

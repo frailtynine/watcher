@@ -186,6 +186,7 @@ class BaseProducer(ABC):
     async def get_sources(
         self,
         source_type: str,
+        user_id: Optional[int] = None
     ) -> List[Source]:
         """Fetch active sources of given type with active tasks."""
         stmt = (
@@ -197,8 +198,12 @@ class BaseProducer(ABC):
                 Source.active.is_(True),
                 NewsTask.active.is_(True)
             )
-            .distinct()
         )
+
+        if user_id is not None:
+            stmt = stmt.where(Source.user_id == user_id)
+        stmt = stmt.distinct()
+
         result: list[Source] = []
         async for session in get_async_session():
             try:

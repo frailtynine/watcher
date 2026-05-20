@@ -7,8 +7,9 @@ from email.utils import parsedate_to_datetime
 
 from app.models.source import Source, SourceType
 from app.models.news_item import NewsItem
-from app.core import settings
 from .base import BaseProducer
+
+RSS_CONCURRENCTY_LIMIT = 100
 
 
 class RSSProducer(BaseProducer):
@@ -194,5 +195,5 @@ async def rss_producer_job():
 
     await producer.run_job(
         source_type=SourceType.RSS,
-        concurrency_limit=settings.RSS_FETCH_CONCURRENCY
+        concurrency_limit=RSS_CONCURRENCTY_LIMIT
     )

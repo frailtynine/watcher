@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 from app.ai.consumer import AIConsumer
 from app.ai.base import ProcessingResult
+from app.core.config import settings
+from app.core.encryption import encrypt_value
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
@@ -26,7 +28,12 @@ def mock_user():
     user = MagicMock(spec=User)
     user.id = 1
     user.email = "test@example.com"
-    user.settings = {"gemini_api_key": "test-api-key"}
+    user.settings = {
+        "gemini_api_key": encrypt_value(
+            "test-api-key",
+            settings.ENCRYPTION_KEY,
+        )
+    }
     return user
 
 
@@ -49,7 +56,7 @@ async def test_news_item(db_session_maker, test_source):
             title="Test News",
             content="This is test news content",
             url="https://example.com/news/1",
-            published_at=datetime.utcnow(),
+            published_at=datetime.now(),
         )
         session.add(news_item)
         await session.commit()
@@ -66,20 +73,18 @@ async def test_get_user_api_key(ai_consumer, mock_user):
 
 @pytest.mark.anyio
 async def test_get_user_api_key_missing(ai_consumer, mock_user_no_key):
-    """Test handling missing API key - should fallback to system key."""
+    """Test handling missing API key."""
     api_key = ai_consumer._get_user_api_key(mock_user_no_key)
-    # Should return system-wide API key as fallback
-    assert api_key is not None
+    assert api_key is None
 
 
 @pytest.mark.anyio
 async def test_get_user_api_key_no_settings(ai_consumer):
-    """Test handling user with no settings - should fallback to system key."""
+    """Test handling user with no settings."""
     user = MagicMock(spec=User)
     user.settings = None
     api_key = ai_consumer._get_user_api_key(user)
-    # Should return system-wide API key as fallback
-    assert api_key is not None
+    assert api_key is None
 
 
 @pytest.mark.anyio
@@ -384,10 +389,14 @@ async def test_process_task_news_with_error(
     async with db_session_maker() as session:
         consumer = AIConsumer()
         task_in_session = await session.merge(test_news_task)
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
         stats = await consumer._process_task_news(
             session,
             mock_client,
-            task_in_session
+            task_in_session,
+            user,
         )
 
         assert stats["processed"] == 0
@@ -432,10 +441,14 @@ async def test_process_task_news_success(
     async with db_session_maker() as session:
         consumer = AIConsumer()
         task_in_session = await session.merge(test_news_task)
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
         stats = await consumer._process_task_news(
             session,
             mock_client,
-            task_in_session
+            task_in_session,
+            user,
         )
 
         assert stats["processed"] == 1

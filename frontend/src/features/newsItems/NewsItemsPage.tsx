@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   Box,
-  Container,
   Heading,
   Table,
   Thead,
@@ -22,9 +21,10 @@ import {
   Badge,
   Tooltip,
   Icon,
+  Container
 } from '@chakra-ui/react';
 import { CheckCircleIcon, WarningIcon, InfoIcon } from '@chakra-ui/icons';
-import { useGetNewsItemsQuery, useGetSourcesQuery, useGetNewsItemResultsQuery } from '../../services/api';
+import { useGetNewsItemsQuery, useGetSourcesQuery } from '../../services/api';
 import { NewsItem } from '../../types';
 import NewsItemDetail from './NewsItemDetail';
 
