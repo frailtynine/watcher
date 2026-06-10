@@ -1,10 +1,35 @@
+export interface TelegramBot {
+  id: number;
+  bot_name: string;
+  bot_tg_id: string;
+  bot_token: boolean;
+  is_active: boolean;
+}
+
 export interface UserSettings {
   gemini_api_key?: string | boolean | null;
   telegram_api_id?: string | boolean | null;
   telegram_api_hash?: string | boolean | null;
   telegram_session_string?: string | boolean | null;
-  telegram_bot_token?: string | boolean | null;
+  telegram_bots?: TelegramBot[];
+}
+
+export interface UserSettingsUpdate {
+  gemini_api_key?: string | null;
+  telegram_api_id?: string | null;
+  telegram_api_hash?: string | null;
+  telegram_session_string?: string | null;
   [key: string]: unknown;
+}
+
+export interface TelegramBotCreate {
+  bot_token: string;
+}
+
+export interface TelegramBotTaskAssociation {
+  telegram_bot_id: number;
+  news_task_id: number;
+  created_at?: string;
 }
 
 export interface NewsTask {

@@ -1,11 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogOverlay,
   AlertDescription,
   AlertIcon,
   Box,
   Button,
+  Center,
+  Divider,
   FormControl,
+  FormErrorMessage,
+  FormHelperText,
   FormLabel,
   Heading,
   Input,
@@ -13,25 +23,25 @@ import {
   Text,
   Textarea,
   VStack,
+  useDisclosure,
   useToast,
-  Center,
 } from '@chakra-ui/react';
 import {
+  useCreateTelegramBotMutation,
+  useDeleteTelegramBotMutation,
   useGetCurrentUserQuery,
   useUpdateCurrentUserMutation,
 } from '../../services/api';
-import type { UserSettings } from '../../types';
+import type { UserSettings, UserSettingsUpdate } from '../../types';
 
 interface SettingsFormState {
   geminiApiKey: string;
   telegramApiId: string;
   telegramApiHash: string;
   telegramSessionString: string;
-  telegramBotToken: string;
 }
 
 type SettingsField = keyof SettingsFormState;
-
 type SettingsFieldState = Record<SettingsField, boolean>;
 
 const EMPTY_FORM_STATE: SettingsFormState = {
@@ -39,7 +49,6 @@ const EMPTY_FORM_STATE: SettingsFormState = {
   telegramApiId: '',
   telegramApiHash: '',
   telegramSessionString: '',
-  telegramBotToken: '',
 };
 
 const EMPTY_FIELD_STATE: SettingsFieldState = {
@@ -47,7 +56,6 @@ const EMPTY_FIELD_STATE: SettingsFieldState = {
   telegramApiId: false,
   telegramApiHash: false,
   telegramSessionString: false,
-  telegramBotToken: false,
 };
 
 const MASKED_VALUE = '******';
@@ -62,27 +70,17 @@ const mapSettingsPresence = (
   telegramApiId: hasStoredValue(settings?.telegram_api_id),
   telegramApiHash: hasStoredValue(settings?.telegram_api_hash),
   telegramSessionString: hasStoredValue(settings?.telegram_session_string),
-  telegramBotToken: hasStoredValue(settings?.telegram_bot_token),
 });
 
 const mergeSettings = (
   formState: SettingsFormState,
   touchedFields: SettingsFieldState,
-): UserSettings => {
-  const nextSettings: UserSettings = {};
+): UserSettingsUpdate => {
+  const nextSettings: UserSettingsUpdate = {};
 
-  const assignOrRemove = (
-    key: keyof UserSettings,
-    value: string,
-  ) => {
+  const assignOrRemove = (key: keyof UserSettingsUpdate, value: string) => {
     const trimmed = value.trim();
-
-    if (trimmed) {
-      nextSettings[key] = trimmed;
-      return;
-    }
-
-    nextSettings[key] = null;
+    nextSettings[key] = trimmed || null;
   };
 
   if (touchedFields.geminiApiKey) {
@@ -97,23 +95,56 @@ const mergeSettings = (
   if (touchedFields.telegramSessionString) {
     assignOrRemove('telegram_session_string', formState.telegramSessionString);
   }
-  if (touchedFields.telegramBotToken) {
-    assignOrRemove('telegram_bot_token', formState.telegramBotToken);
-  }
 
   return nextSettings;
 };
 
+const extractErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== 'object') {
+    return 'Please try again';
+  }
+
+  if ('status' in error && (error.status === 422 || error.status === 400 || error.status === 409)) {
+    const data = 'data' in error ? error.data : undefined;
+
+    if (typeof data === 'string' && data.trim()) {
+      return data;
+    }
+
+    if (data && typeof data === 'object' && 'detail' in data) {
+      const detail = data.detail;
+
+      if (typeof detail === 'string' && detail.trim()) {
+        return detail;
+      }
+    }
+
+    return 'Invalid settings data';
+  }
+
+  return 'Please try again';
+};
+
 export const SettingsPage = () => {
   const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const { data: user, isLoading, isError } = useGetCurrentUserQuery();
   const [updateCurrentUser, { isLoading: isSaving }] =
     useUpdateCurrentUserMutation();
+  const [createTelegramBot, { isLoading: isCreatingBot }] =
+    useCreateTelegramBotMutation();
+  const [deleteTelegramBot, { isLoading: isDeletingBot }] =
+    useDeleteTelegramBotMutation();
+
   const [formState, setFormState] = useState<SettingsFormState>(EMPTY_FORM_STATE);
   const [storedFields, setStoredFields] =
     useState<SettingsFieldState>(EMPTY_FIELD_STATE);
   const [touchedFields, setTouchedFields] =
     useState<SettingsFieldState>(EMPTY_FIELD_STATE);
+  const [botToken, setBotToken] = useState('');
+  const [botTokenError, setBotTokenError] = useState<string | null>(null);
+  const [botToDelete, setBotToDelete] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -123,14 +154,11 @@ export const SettingsPage = () => {
     setFormState(EMPTY_FORM_STATE);
     setStoredFields(mapSettingsPresence(user.settings));
     setTouchedFields(EMPTY_FIELD_STATE);
+    setBotToken('');
+    setBotTokenError(null);
   }, [user]);
 
-  const isDirty = Object.values(touchedFields).some(Boolean);
-
-  const handleChange = (
-    field: keyof SettingsFormState,
-    value: string,
-  ) => {
+  const handleChange = (field: SettingsField, value: string) => {
     setTouchedFields((current) => ({
       ...current,
       [field]: true,
@@ -149,6 +177,8 @@ export const SettingsPage = () => {
     return formState[field];
   };
 
+  const isDirty = Object.values(touchedFields).some(Boolean);
+
   const handleSave = async () => {
     if (!user) {
       return;
@@ -165,17 +195,76 @@ export const SettingsPage = () => {
         duration: 3000,
         isClosable: true,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Failed to save settings',
-        description: error?.status === 422
-          ? 'Invalid settings data'
-          : 'Please try again',
+        description: extractErrorMessage(error),
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
     }
+  };
+
+  const handleAddBot = async () => {
+    const token = botToken.trim();
+    if (!token) {
+      setBotTokenError('Bot token is required');
+      return;
+    }
+
+    try {
+      await createTelegramBot({ bot_token: token }).unwrap();
+      setBotToken('');
+      setBotTokenError(null);
+      toast({
+        title: 'Telegram bot added',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error: unknown) {
+      setBotTokenError(extractErrorMessage(error));
+    }
+  };
+
+  const requestDeleteBot = (botId: number, botName: string) => {
+    setBotToDelete({ id: botId, name: botName });
+    onOpen();
+  };
+
+  const handleDeleteBot = async () => {
+    if (!botToDelete) {
+      return;
+    }
+
+    try {
+      await deleteTelegramBot(botToDelete.id).unwrap();
+      onClose();
+      setBotToDelete(null);
+      toast({
+        title: 'Telegram bot deleted',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: 'Failed to delete bot',
+        description: extractErrorMessage(error),
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleCloseDeleteDialog = () => {
+    if (isDeletingBot) {
+      return;
+    }
+    onClose();
+    setBotToDelete(null);
   };
 
   if (isLoading) {
@@ -198,27 +287,30 @@ export const SettingsPage = () => {
   }
 
   return (
-    <Box maxW="3xl">
+    <Box maxW="4xl">
       <VStack spacing={6} align="stretch">
         <Box>
           <Heading size="lg" mb={2}>
             Settings
           </Heading>
           <Text color="gray.600">
-            Store personal AI and Telegram credentials in your account settings.
+            Manage the personal credentials NewsWatcher uses for AI
+            processing and Telegram delivery.
           </Text>
         </Box>
 
         <Alert status="info" borderRadius="md">
           <AlertIcon />
           <AlertDescription>
-            These values are saved in your user settings object and stay attached
-            to your account.
+            Secret values are masked after saving. Leave a masked value
+            unchanged to keep it, or replace it with a new one.
           </AlertDescription>
         </Alert>
 
         <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
           <VStack spacing={5} align="stretch">
+            <Heading size="md">AI Settings</Heading>
+
             <FormControl>
               <FormLabel>Gemini API Key</FormLabel>
               <Input
@@ -233,6 +325,12 @@ export const SettingsPage = () => {
                 placeholder="Enter your Gemini API key"
               />
             </FormControl>
+          </VStack>
+        </Box>
+
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={5} align="stretch">
+            <Heading size="md">Telegram Producer Credentials</Heading>
 
             <FormControl>
               <FormLabel>Telegram API ID</FormLabel>
@@ -285,39 +383,125 @@ export const SettingsPage = () => {
                 rows={6}
               />
             </FormControl>
+          </VStack>
+        </Box>
 
-            <FormControl>
-              <FormLabel>Telegram Bot Token</FormLabel>
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={5} align="stretch">
+            <Box>
+              <Heading size="md" mb={1}>
+                Telegram Delivery Bots
+              </Heading>
+              <Text color="gray.600" fontSize="sm">
+                Add bot tokens. Bot name and Telegram ID are fetched and saved automatically.
+              </Text>
+            </Box>
+
+            <Divider />
+
+            <FormControl isInvalid={Boolean(botTokenError)}>
+              <FormLabel>Bot Token</FormLabel>
               <Input
                 type="password"
-                value={getDisplayValue('telegramBotToken')}
-                onChange={(e) =>
-                  handleChange('telegramBotToken', e.target.value)
-                }
-                onFocus={(e) => {
-                  if (
-                    !touchedFields.telegramBotToken
-                    && storedFields.telegramBotToken
-                  ) {
-                    e.target.select();
-                  }
+                value={botToken}
+                onChange={(e) => {
+                  setBotToken(e.target.value);
+                  setBotTokenError(null);
                 }}
-                placeholder="Enter your Telegram bot token"
+                placeholder="Enter the Telegram bot token"
               />
+              <FormHelperText>
+                This validates the token with Telegram and stores the bot in the database.
+              </FormHelperText>
+              <FormErrorMessage>{botTokenError}</FormErrorMessage>
             </FormControl>
 
             <Button
               alignSelf="flex-start"
-              colorScheme="blue"
-              onClick={handleSave}
-              isLoading={isSaving}
-              isDisabled={!isDirty}
+              variant="outline"
+              onClick={handleAddBot}
+              isLoading={isCreatingBot}
             >
-              Save settings
+              Add Bot
             </Button>
+
+            <VStack align="stretch" spacing={2}>
+              {(user.settings.telegram_bots ?? []).map((bot) => (
+                <Box key={bot.id} borderWidth="1px" borderRadius="md" p={3}>
+                  <Box display="flex" alignItems="center" justifyContent="space-between" gap={3}>
+                    <Box>
+                      <Text fontWeight="semibold">@{bot.bot_name}</Text>
+                      <Text fontSize="sm" color="gray.600">
+                        Telegram ID: {bot.bot_tg_id}
+                      </Text>
+                    </Box>
+                    <Button
+                      size="sm"
+                      colorScheme="red"
+                      variant="ghost"
+                      onClick={() => requestDeleteBot(bot.id, bot.bot_name)}
+                      isLoading={isDeletingBot && botToDelete?.id === bot.id}
+                    >
+                      Delete
+                    </Button>
+                  </Box>
+                </Box>
+              ))}
+              {(user.settings.telegram_bots ?? []).length === 0 ? (
+                <Text color="gray.500" fontSize="sm">
+                  No Telegram bots configured.
+                </Text>
+              ) : null}
+            </VStack>
           </VStack>
         </Box>
+
+        <Button
+          alignSelf="flex-start"
+          colorScheme="blue"
+          onClick={handleSave}
+          isLoading={isSaving}
+          isDisabled={!isDirty}
+        >
+          Save settings
+        </Button>
       </VStack>
+
+      <AlertDialog
+        isOpen={isOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={handleCloseDeleteDialog}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+              Delete Telegram Bot
+            </AlertDialogHeader>
+
+            <AlertDialogBody>
+              Delete @{botToDelete?.name}? This action cannot be undone.
+            </AlertDialogBody>
+
+            <AlertDialogFooter>
+              <Button
+                ref={cancelRef}
+                onClick={handleCloseDeleteDialog}
+                isDisabled={isDeletingBot}
+              >
+                Cancel
+              </Button>
+              <Button
+                colorScheme="red"
+                onClick={handleDeleteBot}
+                ml={3}
+                isLoading={isDeletingBot}
+              >
+                Delete
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 };

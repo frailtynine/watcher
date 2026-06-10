@@ -1,6 +1,6 @@
 from fastapi_users.db import SQLAlchemyBaseUserTable
 from sqlalchemy import String, Boolean, Integer
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSON
 
 from app.db import Base
@@ -25,6 +25,9 @@ class User(SQLAlchemyBaseUserTable[int], Base):
     is_verified: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
-    settings: Mapped[dict] = mapped_column(
-        JSON, nullable=True, default=dict
+    settings: Mapped[dict] = mapped_column(JSON, nullable=True, default=dict)
+    telegram_bots: Mapped[list["TelegramBot"]] = relationship(  # noqa: F821
+        "TelegramBot",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

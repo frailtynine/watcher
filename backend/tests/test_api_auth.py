@@ -1,5 +1,6 @@
 import pytest
 from httpx import AsyncClient
+
 from app.models import User
 
 pytestmark = pytest.mark.anyio
@@ -134,11 +135,10 @@ async def test_update_settings(client: AsyncClient, auth_headers: dict):
         json={
             "settings": {
                 "gemini_api_key": "test-api-key",
-                "telegram_bot_token": "bot-token",
             }
         },
     )
     assert response.status_code == 200
     data = response.json()
     assert data["settings"]["gemini_api_key"] is True
-    assert data["settings"]["telegram_bot_token"] is True
+    assert data["settings"]["telegram_bots"] == []

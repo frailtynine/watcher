@@ -11,6 +11,10 @@ import type {
   NewsItemNewsTask,
   Newspaper,
   UserSettings,
+  UserSettingsUpdate,
+  TelegramBot,
+  TelegramBotCreate,
+  TelegramBotTaskAssociation,
 } from '../types';
 
 export interface LoginRequest {
@@ -33,7 +37,7 @@ export interface User {
 }
 
 export interface UserUpdateRequest {
-  settings: UserSettings;
+  settings: UserSettingsUpdate;
 }
 
 export interface LoginResponse {
@@ -53,7 +57,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations', 'NewsItems', 'Newspaper'],
+  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations', 'TaskBots', 'NewsItems', 'Newspaper'],
   endpoints: (builder) => ({
     register: builder.mutation<User, RegisterRequest>({
       query: (credentials) => ({
@@ -90,6 +94,21 @@ export const api = createApi({
         url: '/users/me',
         method: 'PATCH',
         body,
+      }),
+      invalidatesTags: ['User'],
+    }),
+    createTelegramBot: builder.mutation<TelegramBot, TelegramBotCreate>({
+      query: (body) => ({
+        url: '/telegram-bots/',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['User'],
+    }),
+    deleteTelegramBot: builder.mutation<void, number>({
+      query: (botId) => ({
+        url: `/telegram-bots/${botId}`,
+        method: 'DELETE',
       }),
       invalidatesTags: ['User'],
     }),
@@ -133,6 +152,30 @@ export const api = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: ['NewsTasks'],
+    }),
+    getTaskTelegramBots: builder.query<TelegramBotTaskAssociation[], string>({
+      query: (taskId) => `/news-tasks/${taskId}/telegram-bots`,
+      providesTags: ['TaskBots'],
+    }),
+    associateTelegramBotWithTask: builder.mutation<
+      TelegramBotTaskAssociation,
+      { taskId: string; botId: number }
+    >({
+      query: ({ taskId, botId }) => ({
+        url: `/news-tasks/${taskId}/telegram-bots/${botId}`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['TaskBots'],
+    }),
+    disassociateTelegramBotFromTask: builder.mutation<
+      void,
+      { taskId: string; botId: number }
+    >({
+      query: ({ taskId, botId }) => ({
+        url: `/news-tasks/${taskId}/telegram-bots/${botId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['TaskBots'],
     }),
 
     // Sources
@@ -259,11 +302,16 @@ export const {
   useLogoutMutation,
   useGetCurrentUserQuery,
   useUpdateCurrentUserMutation,
+  useCreateTelegramBotMutation,
+  useDeleteTelegramBotMutation,
   useGetNewsTasksQuery,
   useGetNewsTaskQuery,
   useCreateNewsTaskMutation,
   useUpdateNewsTaskMutation,
   useDeleteNewsTaskMutation,
+  useGetTaskTelegramBotsQuery,
+  useAssociateTelegramBotWithTaskMutation,
+  useDisassociateTelegramBotFromTaskMutation,
   useGetSourcesQuery,
   useSearchSourcesQuery,
   useLazySearchSourcesQuery,
