@@ -8,20 +8,24 @@ SENSITIVE_SETTINGS_FIELDS = {
     "telegram_api_id",
     "telegram_api_hash",
     "telegram_session_string",
-    "telegram_bot_token",
 }
+LEGACY_TELEGRAM_BOTS_FIELD = "telegram_bots"
 
 
-def settings_presence(values: dict[str, Any] | None) -> dict[str, bool]:
-    """Return presence flags for sensitive settings fields."""
+def settings_presence(values: dict[str, Any] | None) -> dict[str, Any]:
+    """Return safe settings values for the API response."""
     if not values:
         return {}
 
-    return {
-        field: True
-        for field in SENSITIVE_SETTINGS_FIELDS
-        if values.get(field)
+    visible_settings = {
+        field: True for field in SENSITIVE_SETTINGS_FIELDS if values.get(field)
     }
+
+    telegram_bots = values.get(LEGACY_TELEGRAM_BOTS_FIELD)
+    if isinstance(telegram_bots, list):
+        visible_settings[LEGACY_TELEGRAM_BOTS_FIELD] = telegram_bots
+
+    return visible_settings
 
 
 def merge_settings_for_storage(
@@ -35,6 +39,10 @@ def merge_settings_for_storage(
         return merged_settings
 
     for key, value in incoming_settings.items():
+        if key == LEGACY_TELEGRAM_BOTS_FIELD:
+            merged_settings.pop(LEGACY_TELEGRAM_BOTS_FIELD, None)
+            continue
+
         if value is None:
             merged_settings.pop(key, None)
             continue

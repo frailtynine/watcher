@@ -158,3 +158,23 @@ async def test_news_task(db_session_maker, test_user: User):
         await session.commit()
         await session.refresh(task)
         return task
+
+
+@pytest.fixture
+async def test_telegram_bot(db_session_maker, test_user: User):
+    """Create a test telegram bot."""
+    from app.models import TelegramBot
+
+    async with db_session_maker() as session:
+        bot = TelegramBot(
+            user_id=test_user.id,
+            bot_token="encrypted-token",
+            bot_name="test_news_bot",
+            bot_tg_id="123456789",
+            chats=[],
+            is_active=True,
+        )
+        session.add(bot)
+        await session.commit()
+        await session.refresh(bot)
+        return bot

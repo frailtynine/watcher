@@ -32,6 +32,7 @@ import {
 import type { NewsTask } from '../../types';
 import { SourcesList } from '../sources/SourcesList';
 import { AddSourceModal } from '../sources/AddSourceModal';
+import { TaskBotsManager } from './TaskBotsManager';
 
 interface EditNewsTaskModalProps {
   isOpen: boolean;
@@ -184,6 +185,15 @@ export const EditNewsTaskModal = ({
                 ) : (
                   <SourcesList sources={sources} taskId={task.id} />
                 )}
+              </Box>
+
+              <Divider />
+
+              <Box>
+                <Heading size="sm" mb={4}>
+                  Telegram Bots
+                </Heading>
+                <TaskBotsManager taskId={task.id} />
               </Box>
             </VStack>
           </ModalBody>

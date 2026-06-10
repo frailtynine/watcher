@@ -27,6 +27,7 @@ dependencies = [
     "boto3>=1.38.0",
     "apscheduler>=3.11.2",
     "ruff>=0.14.14",
+    "python-telegram-bot>=22.7",
 ]
 
 [build-system]

@@ -6,16 +6,36 @@ from .news_item import NewsItemRead, NewsItemCreate, NewsItemUpdate
 from .news_item_news_task import (
     NewsItemNewsTaskRead,
     NewsItemNewsTaskCreate,
-    NewsItemNewsTaskUpdate
+    NewsItemNewsTaskUpdate,
 )
 from .newspaper import NewspaperRead
+from .telegram_bot import TelegramBotCreate, TelegramBotRead
+from .telegram_bot_news_task import (
+    TelegramBotNewsTaskCreate,
+    TelegramBotNewsTaskRead,
+)
 
 __all__ = [
-    "UserRead", "UserCreate", "UserUpdate",
-    "NewsTaskRead", "NewsTaskCreate", "NewsTaskUpdate",
-    "SourceRead", "SourceCreate", "SourceUpdate",
-    "SourceNewsTaskRead", "SourceNewsTaskCreate",
-    "NewsItemRead", "NewsItemCreate", "NewsItemUpdate",
-    "NewsItemNewsTaskRead", "NewsItemNewsTaskCreate", "NewsItemNewsTaskUpdate",
+    "UserRead",
+    "UserCreate",
+    "UserUpdate",
+    "NewsTaskRead",
+    "NewsTaskCreate",
+    "NewsTaskUpdate",
+    "SourceRead",
+    "SourceCreate",
+    "SourceUpdate",
+    "SourceNewsTaskRead",
+    "SourceNewsTaskCreate",
+    "NewsItemRead",
+    "NewsItemCreate",
+    "NewsItemUpdate",
+    "NewsItemNewsTaskRead",
+    "NewsItemNewsTaskCreate",
+    "NewsItemNewsTaskUpdate",
     "NewspaperRead",
+    "TelegramBotCreate",
+    "TelegramBotRead",
+    "TelegramBotNewsTaskCreate",
+    "TelegramBotNewsTaskRead",
 ]
