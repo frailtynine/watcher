@@ -21,6 +21,9 @@ from app.delivery.web import NewsPaperProcessor
 from app.models.user import User
 from app.models.utils import utcnow_naive
 from app.db.database import get_async_session
+from app.crud import telegram_bot_news_task_crud
+from app.delivery.telegram.telegram_service import TelegramService
+from app.delivery.telegram.telegram_sender import TelegramSender
 
 logger = logging.getLogger(__name__)
 
@@ -37,10 +40,7 @@ class AIConsumer:
         """Build a consistent user context string for logs."""
         return f"user_id={user.id} email={user.email}"
 
-    async def process_user_news(
-        self,
-        user_id: int
-    ) -> dict:
+    async def process_user_news(self, user_id: int) -> dict:
         """Process all unprocessed news for a user's active tasks.
 
         Args:
@@ -109,7 +109,7 @@ class AIConsumer:
                 "processed": total_processed,
                 "matched": total_matched,
                 "rejected": total_rejected,
-                "errors": total_errors
+                "errors": total_errors,
             }
 
     async def _process_task_news(
@@ -167,7 +167,7 @@ class AIConsumer:
                 task.id,
                 task.name,
                 e,
-                exc_info=True
+                exc_info=True,
             )
             await db.rollback()
             # Count all as errors if commit fails
@@ -179,11 +179,41 @@ class AIConsumer:
                 "errors": queued,
             }
 
+        matched_news_items = [
+            news_item
+            for news_item, result in zip(news_items, results)
+            if isinstance(result, ProcessingResult) and result.result
+        ]
+
+        if matched_news_items:
+            bot_ids = await self._get_task_bot_ids(db, task.id)
+            for bot_id in bot_ids:
+                for matched_news_item in matched_news_items:
+                    news_url = matched_news_item.url or matched_news_item.title
+                    try:
+                        await self._send_message(
+                            user_id=user.id,
+                            bot_id=bot_id,
+                            newstask_id=task.id,
+                            news_url=news_url,
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            "Error sending Telegram message for %s "
+                            "task_id=%s bot_id=%s news_item_id=%s: %s",
+                            self._format_user_context(user),
+                            task.id,
+                            bot_id,
+                            matched_news_item.id,
+                            e,
+                            exc_info=True,
+                        )
+
         # Count successes and errors
         successful_results = [
             result
             for result in results
-            if result and not isinstance(result, Exception)
+            if isinstance(result, ProcessingResult)
         ]
         processed = len(successful_results)
         matched = sum(
@@ -193,7 +223,8 @@ class AIConsumer:
             1 for result in successful_results if result.result is False
         )
         errors = sum(
-            1 for result in results
+            1
+            for result in results
             if isinstance(result, Exception) or result is None
         )
 
@@ -201,8 +232,7 @@ class AIConsumer:
             processor = NewsPaperProcessor()
             for news_item in news_items:
                 await processor.process_newspaper(
-                    news_task=task,
-                    news_item=news_item
+                    news_task=task, news_item=news_item
                 )
         except Exception as e:
             self.logger.error(
@@ -213,7 +243,7 @@ class AIConsumer:
                 task.id,
                 task.name,
                 e,
-                exc_info=True
+                exc_info=True,
             )
 
         self.logger.info(
@@ -243,7 +273,7 @@ class AIConsumer:
         news_item: NewsItem,
         task: NewsTask,
         user: User,
-        db: AsyncSession
+        db: AsyncSession,
     ) -> ProcessingResult | None:
         """Process a single news item concurrently.
 
@@ -258,7 +288,7 @@ class AIConsumer:
             result = await client.process_news(
                 title=news_item.title,
                 content=news_item.content,
-                prompt=task.prompt
+                prompt=task.prompt,
             )
 
             await self._save_result(db, news_item, task, result)
@@ -276,14 +306,12 @@ class AIConsumer:
                 task.id,
                 task.name,
                 e,
-                exc_info=True
+                exc_info=True,
             )
             return None
 
     async def _get_active_tasks(
-        self,
-        db: AsyncSession,
-        user_id: int
+        self, db: AsyncSession, user_id: int
     ) -> list[NewsTask]:
         """Get all active tasks for a user.
 
@@ -295,18 +323,27 @@ class AIConsumer:
             List of active NewsTask instances
         """
         stmt = select(NewsTask).where(
-            and_(
-                NewsTask.user_id == user_id,
-                NewsTask.active.is_(True)
-            )
+            and_(NewsTask.user_id == user_id, NewsTask.active.is_(True))
         )
         result = await db.execute(stmt)
         return result.scalars().all()
 
-    async def _get_unprocessed_news(
+    async def _get_task_bot_ids(
         self,
         db: AsyncSession,
-        task: NewsTask
+        task_id: int,
+    ) -> list[int]:
+        associations = await telegram_bot_news_task_crud.get_multi(
+            db,
+            news_task_id=task_id,
+        )
+        return [
+            association["telegram_bot_id"]
+            for association in associations["data"]
+        ]
+
+    async def _get_unprocessed_news(
+        self, db: AsyncSession, task: NewsTask
     ) -> list[NewsItem]:
         """Get unprocessed news items for a task (< 4 hours old).
 
@@ -323,15 +360,14 @@ class AIConsumer:
         stmt = (
             select(NewsItem)
             .join(
-                SourceNewsTask,
-                NewsItem.source_id == SourceNewsTask.source_id
+                SourceNewsTask, NewsItem.source_id == SourceNewsTask.source_id
             )
             .outerjoin(
                 NewsItemNewsTask,
                 and_(
                     NewsItemNewsTask.news_item_id == NewsItem.id,
-                    NewsItemNewsTask.news_task_id == task.id
-                )
+                    NewsItemNewsTask.news_task_id == task.id,
+                ),
             )
             .where(
                 and_(
@@ -339,8 +375,8 @@ class AIConsumer:
                     NewsItem.published_at >= cutoff_time,
                     or_(
                         NewsItemNewsTask.news_item_id.is_(None),
-                        NewsItemNewsTask.processed.is_(False)
-                    )
+                        NewsItemNewsTask.processed.is_(False),
+                    ),
                 )
             )
             .distinct(NewsItem.id)
@@ -351,11 +387,7 @@ class AIConsumer:
         return result.scalars().all()
 
     async def _save_result(
-        self,
-        db: AsyncSession,
-        news_item: NewsItem,
-        task: NewsTask,
-        result
+        self, db: AsyncSession, news_item: NewsItem, task: NewsTask, result
     ) -> None:
         """Save processing result to database.
 
@@ -369,7 +401,7 @@ class AIConsumer:
         stmt = select(NewsItemNewsTask).where(
             and_(
                 NewsItemNewsTask.news_item_id == news_item.id,
-                NewsItemNewsTask.news_task_id == task.id
+                NewsItemNewsTask.news_task_id == task.id,
             )
         )
         existing = await db.execute(stmt)
@@ -378,7 +410,7 @@ class AIConsumer:
         ai_response = {
             "thinking": result.thinking,
             "tokens_used": result.tokens_used,
-            "processed_at": utcnow_naive().isoformat()
+            "processed_at": utcnow_naive().isoformat(),
         }
 
         if record:
@@ -395,7 +427,7 @@ class AIConsumer:
                 processed=True,
                 result=result.result,
                 processed_at=utcnow_naive(),
-                ai_response=ai_response
+                ai_response=ai_response,
             )
             db.add(record)
 
@@ -420,6 +452,31 @@ class AIConsumer:
             settings.ENCRYPTION_KEY,
         )
 
+    async def _send_message(
+        self,
+        user_id: int,
+        bot_id: int,
+        newstask_id: int,
+        news_url: str,
+    ) -> None:
+        bot_data = await TelegramService().get_bot_instance(user_id, bot_id)
+        if not bot_data:
+            return
+        encrypted_bot_token = bot_data.get("bot_token")
+        if not encrypted_bot_token:
+            return
+        telegram_sender = TelegramSender(
+            encrypted_bot_token=encrypted_bot_token
+        )
+        for chat_dict in bot_data.get("chats", []):
+            if chat_dict.get("task_id") == newstask_id:
+                await telegram_sender.send_message(
+                    user_id=user_id,
+                    chat_id=chat_dict.get("chat_id"),
+                    newstask_id=newstask_id,
+                    news_url=news_url,
+                )
+
 
 async def run_ai_consumer_job():
     """Run AI consumer job for all active users."""
@@ -436,9 +493,7 @@ async def run_ai_consumer_job():
     results = await asyncio.gather(*user_tasks)
 
     logged_results = [
-        result
-        for result in results
-        if result.get("active_tasks", 0) > 0
+        result for result in results if result.get("active_tasks", 0) > 0
     ]
 
     if not logged_results:

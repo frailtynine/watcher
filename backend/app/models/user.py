@@ -26,7 +26,7 @@ class User(SQLAlchemyBaseUserTable[int], Base):
         Boolean, default=False, nullable=False
     )
     settings: Mapped[dict] = mapped_column(JSON, nullable=True, default=dict)
-    telegram_bots: Mapped[list["TelegramBot"]] = relationship(  # noqa: F821
+    telegram_bots: Mapped[list["TelegramBot"]] = relationship(  # noqa: F821 # type: ignore
         "TelegramBot",
         back_populates="user",
         cascade="all, delete-orphan",

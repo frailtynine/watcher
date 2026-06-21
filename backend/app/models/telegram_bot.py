@@ -45,7 +45,7 @@ class TelegramBot(Base):
         "User",
         back_populates="telegram_bots",
     )
-    news_tasks: Mapped[list["NewsTask"]] = relationship(  # type: ignore # noqa: F821
+    news_tasks: Mapped[list["NewsTask"]] = relationship(  # noqa: F821 # type: ignore
         "NewsTask",
         secondary="telegram_bot_news_task",
         back_populates="telegram_bots",
