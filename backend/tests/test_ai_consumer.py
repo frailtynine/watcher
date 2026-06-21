@@ -13,6 +13,8 @@ from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
 from app.models.source import Source, SourceType
 from app.models.source_news_task import SourceNewsTask
+from app.models.telegram_bot import TelegramBot
+from app.models.telegram_bot_news_task import TelegramBotNewsTask
 from app.models.user import User
 
 
@@ -89,10 +91,7 @@ async def test_get_user_api_key_no_settings(ai_consumer):
 
 @pytest.mark.anyio
 async def test_get_active_tasks(
-    ai_consumer,
-    db_session_maker,
-    test_user,
-    test_news_task
+    ai_consumer, db_session_maker, test_user, test_news_task
 ):
     """Test fetching active tasks for a user."""
     async with db_session_maker() as session:
@@ -104,9 +103,7 @@ async def test_get_active_tasks(
 
 @pytest.mark.anyio
 async def test_get_active_tasks_excludes_inactive(
-    ai_consumer,
-    db_session_maker,
-    test_user
+    ai_consumer, db_session_maker, test_user
 ):
     """Test that inactive tasks are excluded."""
     async with db_session_maker() as session:
@@ -137,18 +134,13 @@ async def test_get_active_tasks_excludes_inactive(
 
 @pytest.mark.anyio
 async def test_get_unprocessed_news(
-    ai_consumer,
-    db_session_maker,
-    test_user,
-    test_news_task,
-    test_source
+    ai_consumer, db_session_maker, test_user, test_news_task, test_source
 ):
     """Test fetching unprocessed news items."""
     async with db_session_maker() as session:
         # Link source to task
         source_task_link = SourceNewsTask(
-            source_id=test_source.id,
-            news_task_id=test_news_task.id
+            source_id=test_source.id, news_task_id=test_news_task.id
         )
         session.add(source_task_link)
 
@@ -178,8 +170,7 @@ async def test_get_unprocessed_news(
         # Fetch unprocessed news
         consumer = AIConsumer()
         news_items = await consumer._get_unprocessed_news(
-            session,
-            task_in_session
+            session, task_in_session
         )
 
         # Should only get recent item
@@ -189,9 +180,7 @@ async def test_get_unprocessed_news(
 
 @pytest.mark.anyio
 async def test_save_result_creates_new_record(
-    ai_consumer,
-    db_session_maker,
-    test_user
+    ai_consumer, db_session_maker, test_user
 ):
     """Test saving result creates new record."""
     # Create test data
@@ -200,7 +189,7 @@ async def test_save_result_creates_new_record(
             user_id=test_user.id,
             name="Test Source",
             source="https://test.com/feed",
-            type=SourceType.RSS
+            type=SourceType.RSS,
         )
         session.add(source)
         await session.commit()
@@ -210,7 +199,7 @@ async def test_save_result_creates_new_record(
             source_id=source.id,
             title="Test News",
             content="Test content",
-            published_at=datetime.now()
+            published_at=datetime.now(),
         )
         session.add(news_item)
 
@@ -218,7 +207,7 @@ async def test_save_result_creates_new_record(
             user_id=test_user.id,
             name="Test Task",
             prompt="Test prompt",
-            active=True
+            active=True,
         )
         session.add(news_task)
         await session.commit()
@@ -226,27 +215,21 @@ async def test_save_result_creates_new_record(
         await session.refresh(news_task)
 
         result = ProcessingResult(
-            result=True,
-            thinking="Matches criteria",
-            tokens_used=150
+            result=True, thinking="Matches criteria", tokens_used=150
         )
 
         consumer = AIConsumer()
-        await consumer._save_result(
-            session,
-            news_item,
-            news_task,
-            result
-        )
+        await consumer._save_result(session, news_item, news_task, result)
         # Commit happens at higher level now
         await session.commit()
 
     # Verify record was created
     async with db_session_maker() as session:
         from sqlalchemy import select
+
         stmt = select(NewsItemNewsTask).where(
             NewsItemNewsTask.news_item_id == news_item.id,
-            NewsItemNewsTask.news_task_id == news_task.id
+            NewsItemNewsTask.news_task_id == news_task.id,
         )
         db_result = await session.execute(stmt)
         record = db_result.scalar_one()
@@ -259,9 +242,7 @@ async def test_save_result_creates_new_record(
 
 @pytest.mark.anyio
 async def test_save_result_updates_existing_record(
-    ai_consumer,
-    db_session_maker,
-    test_user
+    ai_consumer, db_session_maker, test_user
 ):
     """Test saving result updates existing record."""
     # Create test data
@@ -270,7 +251,7 @@ async def test_save_result_updates_existing_record(
             user_id=test_user.id,
             name="Test Source",
             source="https://test.com/feed",
-            type=SourceType.RSS
+            type=SourceType.RSS,
         )
         session.add(source)
         await session.commit()
@@ -280,7 +261,7 @@ async def test_save_result_updates_existing_record(
             source_id=source.id,
             title="Test News",
             content="Test content",
-            published_at=datetime.now()
+            published_at=datetime.now(),
         )
         session.add(news_item)
 
@@ -288,7 +269,7 @@ async def test_save_result_updates_existing_record(
             user_id=test_user.id,
             name="Test Task",
             prompt="Test prompt",
-            active=True
+            active=True,
         )
         session.add(news_task)
         await session.commit()
@@ -300,16 +281,14 @@ async def test_save_result_updates_existing_record(
             news_item_id=news_item.id,
             news_task_id=news_task.id,
             processed=False,
-            result=None
+            result=None,
         )
         session.add(initial_record)
         await session.commit()
 
     # Update with processing result
     result = ProcessingResult(
-        result=False,
-        thinking="Does not match",
-        tokens_used=100
+        result=False, thinking="Does not match", tokens_used=100
     )
 
     async with db_session_maker() as session:
@@ -317,10 +296,7 @@ async def test_save_result_updates_existing_record(
         item_in_session = await session.merge(news_item)
         task_in_session = await session.merge(news_task)
         await consumer._save_result(
-            session,
-            item_in_session,
-            task_in_session,
-            result
+            session, item_in_session, task_in_session, result
         )
         # Commit happens at higher level now
         await session.commit()
@@ -328,9 +304,10 @@ async def test_save_result_updates_existing_record(
     # Verify record was updated
     async with db_session_maker() as session:
         from sqlalchemy import select
+
         stmt = select(NewsItemNewsTask).where(
             NewsItemNewsTask.news_item_id == news_item.id,
-            NewsItemNewsTask.news_task_id == news_task.id
+            NewsItemNewsTask.news_task_id == news_task.id,
         )
         db_result = await session.execute(stmt)
         record = db_result.scalar_one()
@@ -342,14 +319,10 @@ async def test_save_result_updates_existing_record(
 
 @pytest.mark.anyio
 async def test_process_user_news_no_api_key(
-    ai_consumer,
-    db_session_maker,
-    mock_user_no_key
+    ai_consumer, db_session_maker, mock_user_no_key
 ):
     """Test processing handles missing API key."""
-    result = await ai_consumer.process_user_news(
-        mock_user_no_key.id
-    )
+    result = await ai_consumer.process_user_news(mock_user_no_key.id)
 
     assert result["processed"] == 0
     assert result["errors"] == 0
@@ -357,17 +330,13 @@ async def test_process_user_news_no_api_key(
 
 @pytest.mark.anyio
 async def test_process_task_news_with_error(
-    ai_consumer,
-    db_session_maker,
-    test_news_task,
-    test_source
+    ai_consumer, db_session_maker, test_news_task, test_source
 ):
     """Test error handling during processing."""
     # Setup: Link source to task and create news item
     async with db_session_maker() as session:
         source_task_link = SourceNewsTask(
-            source_id=test_source.id,
-            news_task_id=test_news_task.id
+            source_id=test_source.id, news_task_id=test_news_task.id
         )
         session.add(source_task_link)
 
@@ -382,9 +351,7 @@ async def test_process_task_news_with_error(
 
     # Mock Gemini client that raises error
     mock_client = MagicMock()
-    mock_client.process_news = AsyncMock(
-        side_effect=Exception("API Error")
-    )
+    mock_client.process_news = AsyncMock(side_effect=Exception("API Error"))
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
@@ -405,17 +372,13 @@ async def test_process_task_news_with_error(
 
 @pytest.mark.anyio
 async def test_process_task_news_success(
-    ai_consumer,
-    db_session_maker,
-    test_news_task,
-    test_source
+    ai_consumer, db_session_maker, test_news_task, test_source
 ):
     """Test successful processing of news items."""
     # Setup: Link source to task and create news item
     async with db_session_maker() as session:
         source_task_link = SourceNewsTask(
-            source_id=test_source.id,
-            news_task_id=test_news_task.id
+            source_id=test_source.id, news_task_id=test_news_task.id
         )
         session.add(source_task_link)
 
@@ -432,9 +395,7 @@ async def test_process_task_news_success(
     mock_client = MagicMock()
     mock_client.process_news = AsyncMock(
         return_value=ProcessingResult(
-            result=True,
-            thinking="Test thinking",
-            tokens_used=200
+            result=True, thinking="Test thinking", tokens_used=200
         )
     )
 
@@ -453,3 +414,156 @@ async def test_process_task_news_success(
 
         assert stats["processed"] == 1
         assert stats["errors"] == 0
+
+
+@pytest.mark.anyio
+async def test_get_task_bot_ids_returns_associated_ids(
+    ai_consumer,
+    db_session_maker,
+    test_user,
+    test_news_task,
+    test_telegram_bot,
+):
+    async with db_session_maker() as session:
+        second_bot = TelegramBot(
+            user_id=test_user.id,
+            bot_token="encrypted-token-2",
+            bot_name="test_news_bot_2",
+            bot_tg_id="987654321",
+            chats=[],
+            is_active=True,
+        )
+        session.add(second_bot)
+        await session.commit()
+        await session.refresh(second_bot)
+
+        session.add_all(
+            [
+                TelegramBotNewsTask(
+                    telegram_bot_id=test_telegram_bot.id,
+                    news_task_id=test_news_task.id,
+                ),
+                TelegramBotNewsTask(
+                    telegram_bot_id=second_bot.id,
+                    news_task_id=test_news_task.id,
+                ),
+            ]
+        )
+        await session.commit()
+
+        bot_ids = await ai_consumer._get_task_bot_ids(
+            session, test_news_task.id
+        )
+
+        assert set(bot_ids) == {test_telegram_bot.id, second_bot.id}
+
+
+@pytest.mark.anyio
+async def test_process_task_news_sends_message_for_each_bot_on_match(
+    db_session_maker,
+    test_news_task,
+    test_source,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="Matched News",
+                content="Matched content",
+                url="https://example.com/matched",
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=50,
+        )
+    )
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10, 20])
+        consumer._send_message = AsyncMock()
+
+        task_in_session = await session.merge(test_news_task)
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+        )
+
+        assert consumer._send_message.await_count == 2
+
+
+@pytest.mark.anyio
+async def test_process_task_news_uses_title_when_news_url_missing(
+    db_session_maker,
+    test_news_task,
+    test_source,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="Title As Fallback",
+                content="Matched content",
+                url=None,
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=50,
+        )
+    )
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10])
+        consumer._send_message = AsyncMock()
+
+        task_in_session = await session.merge(test_news_task)
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+        )
+
+        consumer._send_message.assert_awaited_once_with(
+            user_id=1,
+            bot_id=10,
+            newstask_id=test_news_task.id,
+            news_url="Title As Fallback",
+        )

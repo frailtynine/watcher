@@ -13,11 +13,15 @@ from app.api import api_router
 from app.producers.rss import rss_producer_job
 from app.producers.telegram_manager import telegram_manager_job
 from app.ai.consumer import run_ai_consumer_job
+from app.delivery.telegram.telegram_apps_manager import (
+    telegram_apps_manager_job,
+)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +36,7 @@ async def lifespan(app: FastAPI):
     # Schedule RSS producer job
     scheduler.add_job(
         rss_producer_job,
-        trigger=IntervalTrigger(
-            minutes=settings.RSS_FETCH_INTERVAL_MINUTES
-        ),
+        trigger=IntervalTrigger(minutes=settings.RSS_FETCH_INTERVAL_MINUTES),
         id="rss_producer",
         name="RSS Feed Producer",
         replace_existing=True,
@@ -48,10 +50,20 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         max_instances=1,
     )
-    telegram_manager_task = asyncio.create_task(telegram_manager_job(
-        check_interval_seconds=settings.TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS
-    ))
+    telegram_manager_task = asyncio.create_task(
+        telegram_manager_job(
+            check_interval_seconds=settings.TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS
+        )
+    )
     app.state.telegram_manager_task = telegram_manager_task
+    telegram_apps_task = asyncio.create_task(
+        telegram_apps_manager_job(
+            check_interval_seconds=(
+                settings.TELEGRAM_APPS_MANAGER_CHECK_INTERVAL_SECONDS
+            )
+        )
+    )
+    app.state.telegram_apps_task = telegram_apps_task
     logger.info(
         f"Scheduled RSS producer job to run every "
         f"{settings.RSS_FETCH_INTERVAL_MINUTES} minutes"
@@ -61,10 +73,15 @@ async def lifespan(app: FastAPI):
 
     # Cleanup on shutdown
     telegram_manager_task.cancel()
+    telegram_apps_task.cancel()
     try:
         await telegram_manager_task
     except asyncio.CancelledError:
         logger.info("Telegram manager task cancelled successfully")
+    try:
+        await telegram_apps_task
+    except asyncio.CancelledError:
+        logger.info("Telegram apps task cancelled successfully")
     scheduler.shutdown(wait=True)
     await engine.dispose()
 
