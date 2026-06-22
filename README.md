@@ -1,6 +1,6 @@
 # NewsWatcher
 
-A modern full-stack web application with authentication, built with FastAPI and React.
+A full-stack news monitoring app with authentication, automated ingestion, AI filtering, and Telegram delivery, built with FastAPI and React.
 
 ## Tech Stack
 
@@ -11,6 +11,9 @@ A modern full-stack web application with authentication, built with FastAPI and 
 - **fastCRUD** - CRUD operations
 - **SQLAlchemy** - ORM
 - **uv** - Package manager
+- **APScheduler** - Background jobs
+- **Google Gemini** - AI filtering and newspaper updates
+- **Telethon + python-telegram-bot** - Telegram ingestion and bot delivery
 
 ### Frontend
 - **React** with TypeScript
@@ -93,6 +96,9 @@ newswatcher/
 │   │   ├── models/           # Database models
 │   │   ├── schemas/          # Pydantic schemas
 │   │   ├── api/              # API routes
+│   │   ├── ai/               # AI consumer and providers
+│   │   ├── delivery/         # Newspaper + Telegram delivery runtime
+│   │   ├── producers/        # RSS/Telegram source producers
 │   │   ├── core/             # Core configuration
 │   │   └── db/               # Database setup
 │   ├── alembic/              # Database migrations
@@ -113,6 +119,8 @@ newswatcher/
 │   └── Dockerfile
 ├── nginx/
 │   └── nginx.conf.template   # nginx reverse proxy template
+├── .github/workflows/
+│   └── ci-cd.yml             # CI/CD pipeline
 ├── docker-compose.dev.yml    # Development compose
 ├── docker-compose.prod.yml   # Production compose
 ├── Makefile                  # Development commands
@@ -218,7 +226,7 @@ make logs
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/jwt/login` - Login (returns JWT token)
 - `POST /api/auth/jwt/logout` - Logout
-- `GET /api/users/me` - Get current user with boolean presence flags for sensitive settings
+- `GET /api/users/me` - Get current user with masked/derived settings
 - `PATCH /api/users/me` - Update current user settings and encrypt sensitive credentials before save
 
 Sensitive settings are never returned as plaintext. Example response shape:
@@ -227,10 +235,26 @@ Sensitive settings are never returned as plaintext. Example response shape:
 {
   "settings": {
     "gemini_api_key": true,
-    "telegram_bot_token": true
+    "telegram_bots": [
+      {
+        "id": 1,
+        "bot_name": "newswatcher_bot",
+        "bot_tg_id": "123456789",
+        "is_active": true
+      }
+    ]
   }
 }
 ```
+
+### Core domain endpoints
+- `/api/sources` - Create/list/update/delete sources (RSS and Telegram)
+- `/api/news-tasks` - CRUD for filtering tasks
+- `/api/associations` - Source-to-task associations
+- `/api/news-items` - News items and per-task processing results
+- `/api/newspapers` - Read/regenerate task newspaper
+- `/api/telegram-bots` - Connect/disconnect Telegram bots
+- `/api/news-tasks/{task_id}/telegram-bots/*` - Attach bots to tasks
 
 ### Documentation
 - `/docs` - Swagger UI
@@ -249,10 +273,13 @@ All environment variables are configured in a single `.env` file in the root dir
 ### Backend
 - `SECRET_KEY` - Secret key for JWT tokens (min 32 characters)
 - `ENCRYPTION_KEY` - Fernet key used to encrypt user credentials in `user.settings`
+- `BACKEND_GEMINI_API_KEY` - Backend-level Gemini key (used for newspaper generation)
 - `BACKEND_CORS_ORIGINS` - Allowed CORS origins (JSON array)
 - `ENVIRONMENT` - Environment (development/production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration time (default: 1440 = 24 hours)
 - `BACKEND_PORT` - Backend service port (default: 8000)
+- `TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS` - User producer manager loop interval
+- `TELEGRAM_APPS_MANAGER_CHECK_INTERVAL_SECONDS` - Telegram bot apps manager loop interval
 
 ### Frontend
 - `FRONTEND_PORT` - Frontend service port (3000 for dev, set 80 for production compose)
@@ -265,8 +292,38 @@ All environment variables are configured in a single `.env` file in the root dir
 - HTTP-only cookies (when implemented)
 - CORS protection
 - Sensitive user settings are encrypted before they are stored in the database
-- `/api/users/me` never returns secret values, only field presence flags like `"gemini_api_key": true`
+- `/api/users/me` never returns secret values; it returns presence flags and derived bot metadata
 - SQL injection protection via SQLAlchemy ORM
+
+## CI/CD
+
+GitHub Actions workflow is defined in `.github/workflows/ci-cd.yml`.
+
+Pipeline behavior:
+- On pull requests to `main`: run backend lint/tests and frontend production build
+- On push to `main`: run CI, build/push backend and frontend Docker images, then deploy on server
+
+Required GitHub repository secrets:
+- `SERVER_HOST`
+- `SERVER_USER`
+- `SSH_PRIVATE_KEY`
+- `SERVER_APP_PATH` (absolute path to this repo on server)
+- `SERVER_PORT` (optional, defaults to `22`)
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+- `DOCKERHUB_BACKEND_IMAGE` (e.g. `org/newswatcher-backend`)
+- `DOCKERHUB_FRONTEND_IMAGE` (e.g. `org/newswatcher-frontend`)
+
+Deploy step runs:
+- Uploads `docker-compose.prod.yml` from CI to server automatically
+- Exports `BACKEND_IMAGE=<backend-image>:<commit-sha>`
+- Exports `FRONTEND_IMAGE=<frontend-image>:<commit-sha>`
+- `docker compose -f docker-compose.prod.yml pull`
+- `docker compose -f docker-compose.prod.yml up -d --remove-orphans`
+
+Server note:
+- `.env` must already exist on the server (it is not managed by CI/CD)
+- `docker-compose.prod.yml` expects `BACKEND_IMAGE` and `FRONTEND_IMAGE` env vars at deploy time
 
 ## Troubleshooting
 
