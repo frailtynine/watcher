@@ -27,7 +27,8 @@ jobs:
       run:
         working-directory: backend
     env:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/newswatcher_test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/newswatcher_test
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/newswatcher_test
       SECRET_KEY: ci-secret-key
       BACKEND_CORS_ORIGINS: '["http://localhost"]'
       ENVIRONMENT: test
