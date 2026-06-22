@@ -1,4 +1,5 @@
 import pytest
+import os
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
     AsyncSession,
@@ -16,8 +17,12 @@ from app.models import User
 from app.core.users import UserManager
 from app.schemas import UserCreate
 
-TEST_DATABASE_URL = (
-    "postgresql+asyncpg://postgres:postgres@db:5432/newswatcher_test"
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    os.getenv(
+        "DATABASE_URL",
+        "postgresql+asyncpg://postgres:postgres@db:5432/newswatcher_test",
+    ),
 )
 
 TEST_USER_EMAIL = "test@example.com"
