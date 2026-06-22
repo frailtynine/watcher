@@ -2,6 +2,7 @@ import pytest
 from httpx import AsyncClient
 from unittest.mock import patch
 from app.models import Source
+from app.models.user import User
 
 pytestmark = pytest.mark.anyio
 
@@ -14,7 +15,7 @@ async def test_create_source_success(client: AsyncClient, auth_headers: dict):
             "valid": True,
             "url": "https://example.com/feed.xml",
             "title": "Test Feed Title",
-            "error": None
+            "error": None,
         }
 
         response = await client.post(
@@ -35,8 +36,7 @@ async def test_create_source_success(client: AsyncClient, auth_headers: dict):
 
 
 async def test_create_source_missing_name(
-    client: AsyncClient,
-    auth_headers: dict
+    client: AsyncClient, auth_headers: dict
 ):
     """Test creating source fails without name."""
     response = await client.post(
@@ -51,8 +51,7 @@ async def test_create_source_missing_name(
 
 
 async def test_create_source_empty_name(
-    client: AsyncClient,
-    auth_headers: dict
+    client: AsyncClient, auth_headers: dict
 ):
     """Test creating source fails with empty name."""
     response = await client.post(
@@ -68,8 +67,7 @@ async def test_create_source_empty_name(
 
 
 async def test_create_source_invalid_type(
-    client: AsyncClient,
-    auth_headers: dict
+    client: AsyncClient, auth_headers: dict
 ):
     """Test creating source fails with invalid type."""
     response = await client.post(
@@ -239,7 +237,7 @@ async def test_create_rss_source_with_invalid_feed(
             "valid": False,
             "url": "https://example.com/invalid.xml",
             "title": None,
-            "error": "Feed has no entries"
+            "error": "Feed has no entries",
         }
 
         response = await client.post(
@@ -267,7 +265,7 @@ async def test_create_rss_source_auto_populate_name(
             "valid": True,
             "url": "https://example.com/feed.xml",
             "title": "Awesome Tech Blog",
-            "error": None
+            "error": None,
         }
 
         response = await client.post(
@@ -297,7 +295,7 @@ async def test_create_rss_source_keep_custom_name(
             "valid": True,
             "url": "https://example.com/feed.xml",
             "title": "Awesome Tech Blog",
-            "error": None
+            "error": None,
         }
 
         response = await client.post(
@@ -327,7 +325,7 @@ async def test_create_rss_source_malformed_url(
             "valid": False,
             "url": "not-a-url",
             "title": None,
-            "error": "URL must start with http:// or https://"
+            "error": "URL must start with http:// or https://",
         }
 
         response = await client.post(
@@ -354,7 +352,7 @@ async def test_create_rss_source_http_error(
             "valid": False,
             "url": "https://example.com/feed.xml",
             "title": None,
-            "error": "HTTP error: status code 404"
+            "error": "HTTP error: status code 404",
         }
 
         response = await client.post(
@@ -371,3 +369,103 @@ async def test_create_rss_source_http_error(
     assert response.status_code == 400
     assert "Invalid RSS feed" in response.json()["detail"]
     assert "404" in response.json()["detail"]
+
+
+async def test_create_telegram_source_requires_user_credentials(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    with patch("app.api.sources.validate_telegram_channel") as mock_validate:
+        response = await client.post(
+            "/api/sources/",
+            headers=auth_headers,
+            json={
+                "name": "My Telegram Source",
+                "type": "Telegram",
+                "source": "testchannel",
+                "active": True,
+            },
+        )
+
+    assert response.status_code == 400
+    assert "requires user Telegram credentials" in response.json()["detail"]
+    mock_validate.assert_not_called()
+
+
+async def test_create_telegram_source_uses_user_settings_credentials(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    settings_response = await client.patch(
+        "/api/users/me",
+        headers=auth_headers,
+        json={
+            "settings": {
+                "telegram_api_id": "12345",
+                "telegram_api_hash": "test-hash",
+                "telegram_session_string": "test-session",
+            }
+        },
+    )
+    assert settings_response.status_code == 200
+
+    with patch("app.api.sources.validate_telegram_channel") as mock_validate:
+        mock_validate.return_value = {
+            "valid": True,
+            "channel_id": "testchannel",
+            "title": "Test Channel",
+            "error": None,
+        }
+
+        response = await client.post(
+            "/api/sources/",
+            headers=auth_headers,
+            json={
+                "name": "My Telegram Source",
+                "type": "Telegram",
+                "source": "testchannel",
+                "active": True,
+            },
+        )
+
+    assert response.status_code == 201
+    mock_validate.assert_called_once_with(
+        channel="testchannel",
+        api_id="12345",
+        api_hash="test-hash",
+        session_string="test-session",
+    )
+
+
+async def test_create_telegram_source_with_invalid_stored_credentials(
+    client: AsyncClient,
+    auth_headers: dict,
+    db_session_maker,
+    test_user,
+):
+    async with db_session_maker() as session:
+        user = await session.get(User, test_user.id)
+        assert user is not None
+        user.settings = {
+            "telegram_api_id": "not-encrypted",
+            "telegram_api_hash": "not-encrypted",
+            "telegram_session_string": "not-encrypted",
+        }
+        await session.commit()
+
+    response = await client.post(
+        "/api/sources/",
+        headers=auth_headers,
+        json={
+            "name": "My Telegram Source",
+            "type": "Telegram",
+            "source": "testchannel",
+            "active": True,
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Invalid Telegram credentials in user settings."
+    )
