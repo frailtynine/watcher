@@ -160,4 +160,5 @@ jobs:
             export BACKEND_IMAGE=${{ secrets.DOCKERHUB_BACKEND_IMAGE }}:${{ github.sha }}
             export FRONTEND_IMAGE=${{ secrets.DOCKERHUB_FRONTEND_IMAGE }}:${{ github.sha }}
             docker-compose -f docker-compose.prod.yml pull
+            docker-compose -f docker-compose.prod.yml down --remove-orphans
             docker-compose -f docker-compose.prod.yml up -d --remove-orphans
