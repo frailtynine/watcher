@@ -285,6 +285,9 @@ All environment variables are configured in a single `.env` file in the root dir
 - `FRONTEND_PORT` - Frontend service port (3000 for dev, set 80 for production compose)
 - `VITE_API_URL` - Backend API URL (use `/api` for production, `http://localhost/api` for dev)
 
+Production note:
+- Always set `VITE_API_URL=/api` in production to avoid mixed-content (`https` page calling `http` API) errors.
+
 ## Security
 
 - Passwords are hashed using bcrypt
