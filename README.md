@@ -301,7 +301,7 @@ GitHub Actions workflow is defined in `.github/workflows/ci-cd.yml`.
 
 Pipeline behavior:
 - On pull requests to `main`: run backend lint/tests and frontend production build
-- On push to `main`: run CI, build/push backend and frontend Docker images, then deploy on server
+- On push to `main`: run CI, build/push ARM64 backend and frontend Docker images, then deploy on server
 
 Required GitHub repository secrets:
 - `SERVER_HOST`
@@ -324,6 +324,7 @@ Deploy step runs:
 Server note:
 - `.env` must already exist on the server (it is not managed by CI/CD)
 - `docker-compose.prod.yml` expects `BACKEND_IMAGE` and `FRONTEND_IMAGE` env vars at deploy time
+- Docker image builds in CI target `linux/arm64`
 
 ## Troubleshooting
 
