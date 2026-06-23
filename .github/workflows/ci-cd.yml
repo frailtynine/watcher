@@ -144,8 +144,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_KEY_PASSPHRASE }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          source: docker-compose.prod.yml
+          source: docker-compose.prod.yml,nginx/*
           target: ${{ secrets.SERVER_APP_PATH }}
+          overwrite: true
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
