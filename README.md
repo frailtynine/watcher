@@ -326,6 +326,7 @@ Server note:
 - `.env` must already exist on the server (it is not managed by CI/CD)
 - `docker-compose.prod.yml` expects `BACKEND_IMAGE` and `FRONTEND_IMAGE` env vars at deploy time
 - Docker image builds in CI target `linux/arm64`
+- Production nginx publishes host port `${BACKEND_PORT}` (e.g. `8200`) to container port `80`
 
 ## Troubleshooting
 
