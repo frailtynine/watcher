@@ -319,8 +319,8 @@ Deploy step runs:
 - Uploads `docker-compose.prod.yml` from CI to server automatically
 - Exports `BACKEND_IMAGE=<backend-image>:<commit-sha>`
 - Exports `FRONTEND_IMAGE=<frontend-image>:<commit-sha>`
-- `docker compose -f docker-compose.prod.yml pull`
-- `docker compose -f docker-compose.prod.yml up -d --remove-orphans`
+- `docker-compose -f docker-compose.prod.yml pull`
+- `docker-compose -f docker-compose.prod.yml up -d --remove-orphans`
 
 Server note:
 - `.env` must already exist on the server (it is not managed by CI/CD)
