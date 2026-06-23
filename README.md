@@ -307,6 +307,7 @@ Required GitHub repository secrets:
 - `SERVER_HOST`
 - `SERVER_USER`
 - `SSH_PRIVATE_KEY`
+- `SSH_KEY_PASSPHRASE` (required if `SSH_PRIVATE_KEY` is encrypted)
 - `SERVER_APP_PATH` (absolute path to this repo on server)
 - `SERVER_PORT` (optional, defaults to `22`)
 - `DOCKERHUB_USERNAME`
