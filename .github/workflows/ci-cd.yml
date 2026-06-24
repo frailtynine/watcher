@@ -146,7 +146,8 @@ jobs:
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             mkdir -p ${{ secrets.SERVER_APP_PATH }}/nginx
-            rm -rf ${{ secrets.SERVER_APP_PATH }}/nginx/nginx.conf.template
+            rm -rf ${{ secrets.SERVER_APP_PATH }}/nginx/nginx.prod.conf
+            rm -rf ${{ secrets.SERVER_APP_PATH }}/watcher/nginx/nginx.prod.conf
 
       - name: Copy production compose to server
         uses: appleboy/scp-action@v0.1.7
@@ -156,8 +157,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_KEY_PASSPHRASE }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          source: docker-compose.prod.yml,nginx/nginx.conf.template
+          source: docker-compose.prod.yml,nginx/nginx.prod.conf
           target: ${{ secrets.SERVER_APP_PATH }}
+          strip_components: 1
           overwrite: true
 
       - name: Deploy to server
