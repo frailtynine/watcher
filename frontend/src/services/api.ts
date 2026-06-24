@@ -115,7 +115,7 @@ export const api = createApi({
 
     // News Tasks
     getNewsTasks: builder.query<NewsTask[], void>({
-      query: () => '/news-tasks',
+      query: () => '/news-tasks/',
       providesTags: ['NewsTasks'],
     }),
     getNewsTask: builder.query<NewsTask, string>({
@@ -126,7 +126,7 @@ export const api = createApi({
     }),
     createNewsTask: builder.mutation<NewsTask, NewsTaskCreate>({
       query: (body) => ({
-        url: '/news-tasks',
+        url: '/news-tasks/',
         method: 'POST',
         body,
       }),
@@ -180,7 +180,7 @@ export const api = createApi({
 
     // Sources
     getSources: builder.query<Source[], void>({
-      query: () => '/sources',
+      query: () => '/sources/',
       providesTags: ['Sources'],
     }),
     searchSources: builder.query<Source[], string>({
@@ -193,7 +193,7 @@ export const api = createApi({
     }),
     createSource: builder.mutation<Source, SourceCreate>({
       query: (body) => ({
-        url: '/sources',
+        url: '/sources/',
         method: 'POST',
         body,
       }),
@@ -231,7 +231,7 @@ export const api = createApi({
       SourceNewsTaskAssociation
     >({
       query: (body) => ({
-        url: '/associations',
+        url: '/associations/',
         method: 'POST',
         body,
       }),
@@ -258,7 +258,7 @@ export const api = createApi({
       }
     >({
       query: (params) => ({
-        url: '/news-items',
+        url: '/news-items/',
         params,
       }),
       providesTags: ['NewsItems'],

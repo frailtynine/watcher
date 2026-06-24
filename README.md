@@ -118,7 +118,8 @@ newswatcher/
 │   ├── package.json
 │   └── Dockerfile
 ├── nginx/
-│   └── nginx.conf.template   # nginx reverse proxy template
+│   ├── nginx.dev.conf        # nginx config for development
+│   └── nginx.prod.conf       # nginx config for production
 ├── .github/workflows/
 │   └── ci-cd.yml             # CI/CD pipeline
 ├── docker-compose.dev.yml    # Development compose
@@ -330,6 +331,10 @@ Server note:
 - `docker-compose.prod.yml` expects `BACKEND_IMAGE` and `FRONTEND_IMAGE` env vars at deploy time
 - Docker image builds in CI target `linux/arm64`
 - Production nginx publishes host port `${BACKEND_PORT}` (e.g. `8200`) to container port `80`
+
+Nginx config split:
+- Development compose uses `nginx/nginx.dev.conf`
+- Production compose uses `nginx/nginx.prod.conf`
 
 ## Troubleshooting
 
