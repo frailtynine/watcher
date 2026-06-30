@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class GeminiClient(BaseAIClient):
     """Client for interacting with Gemini API."""
 
-    MODEL_NAME = "gemini-2.5-flash-lite"
+    MODEL_NAME = "gemini-3.1-flash-lite"
 
     def __init__(self, api_key: str, model_name: str = MODEL_NAME):
         """Initialize Gemini client with API key.
