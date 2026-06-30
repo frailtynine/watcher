@@ -19,10 +19,7 @@ from app.schemas import UserCreate
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@db:5432/newswatcher_test",
-    ),
+    "postgresql+asyncpg://postgres:postgres@db:5432/newswatcher_test",
 )
 
 TEST_USER_EMAIL = "test@example.com"
