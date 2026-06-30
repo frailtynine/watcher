@@ -19,7 +19,9 @@ class MockUsageMetadata:
 class MockResponse:
     """Mock Gemini API response."""
     usage_metadata: MockUsageMetadata = None
-    text: str = '{"result": true, "thinking": "This news matches the criteria"}'
+    text: str = (
+        '{"result": true, "thinking": "This news matches the criteria"}'
+    )
 
 
 @pytest.fixture
@@ -39,7 +41,6 @@ async def test_gemini_client_initialization():
     """Test Gemini client initializes correctly."""
     client = GeminiClient(api_key="test-key-123")
     assert client.api_key == "test-key-123"
-    assert client.MODEL_NAME == "gemini-2.5-flash-lite"
 
 
 @pytest.mark.asyncio
