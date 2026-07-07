@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import timedelta
 
+import google.genai as genai
+from google.genai import types
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.gemini_client import GeminiClient
 from app.ai.types import (
     EvaluationOutcome,
     NotificationTarget,
@@ -248,3 +252,101 @@ class NotificationService:
                     )
                 )
         return targets
+
+    async def get_recent_relevant_headlines(
+        self,
+        db: AsyncSession,
+        task_id: int,
+        hours: int = 24,
+        limit: int = 200,
+        exclude_news_item_id: int | None = None,
+    ) -> list[str]:
+        """Return relevant headlines for a task in the last N hours."""
+        cutoff_time = utcnow_naive() - timedelta(hours=hours)
+        stmt = (
+            select(NewsItem.title)
+            .join(
+                NewsItemNewsTask,
+                NewsItemNewsTask.news_item_id == NewsItem.id,
+            )
+            .where(
+                and_(
+                    NewsItemNewsTask.news_task_id == task_id,
+                    NewsItemNewsTask.processed.is_(True),
+                    NewsItemNewsTask.result.is_(True),
+                    NewsItem.published_at >= cutoff_time,
+                )
+            )
+            .order_by(NewsItem.published_at.desc(), NewsItem.id.desc())
+            .limit(limit)
+        )
+        if exclude_news_item_id is not None:
+            stmt = stmt.where(NewsItem.id != exclude_news_item_id)
+
+        result = await db.execute(stmt)
+        titles = [title.strip() for title in result.scalars().all() if title]
+        deduped_titles: list[str] = []
+        seen: set[str] = set()
+        for title in titles:
+            if title in seen:
+                continue
+            seen.add(title)
+            deduped_titles.append(title)
+        return deduped_titles
+
+    async def is_new_relevant_news_item(
+        self,
+        gemini_api_key: str,
+        task_id: int,
+        news_item_id: int,
+        candidate_title: str,
+        candidate_content: str,
+        db: AsyncSession,
+    ) -> tuple[bool, str]:
+        """Check if item is new among relevant 24-hour headlines."""
+        recent_headlines = await self.get_recent_relevant_headlines(
+            db=db,
+            task_id=task_id,
+            hours=24,
+            exclude_news_item_id=news_item_id,
+        )
+        if not recent_headlines:
+            return True, "No relevant headlines found in the last 24 hours"
+
+        client = genai.Client(api_key=gemini_api_key)
+        response = await client.aio.models.generate_content(
+            model=GeminiClient.MODEL_NAME,
+            contents=json.dumps(
+                {
+                    "candidate_title": candidate_title,
+                    "candidate_content": candidate_content,
+                    "recent_relevant_headlines": recent_headlines,
+                }
+            ),
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "You are a strict news deduplication assistant. "
+                    "You must decide whether the candidate item is NEW or "
+                    "is about the SAME event as one of provided headlines. "
+                    "CRITICAL: compare one-by-one from TOP to BOTTOM in the "
+                    "exact order provided. Do not skip, reorder, or batch."
+                    "Stop as soon as a duplicate is found."
+                ),
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "is_new": {"type": "boolean"},
+                        "thinking": {"type": "string"},
+                        "matched_headline": {
+                            "type": ["string", "null"],
+                        },
+                    },
+                    "required": ["is_new", "thinking", "matched_headline"],
+                },
+            ),
+        )
+        result_data = json.loads(response.text or "{}")
+        is_new = bool(result_data.get("is_new", True))
+        thinking = result_data.get("thinking", "")
+        return is_new, thinking
