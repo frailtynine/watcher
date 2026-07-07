@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gemini_client import GeminiClient
 from app.ai.base import ProcessingResult
+from app.ai.services import NotificationService
 from app.core.config import settings
 from app.core.encryption import decrypt_value
 from app.models.news_item import NewsItem
@@ -34,6 +35,7 @@ class AIConsumer:
     def __init__(self):
         """Initialize AI consumer."""
         self.logger = logger.getChild(self.__class__.__name__)
+        self.notification_service = NotificationService()
 
     @staticmethod
     def _format_user_context(user: User) -> str:
@@ -83,7 +85,13 @@ class AIConsumer:
             total_errors = 0
 
             for task in tasks:
-                stats = await self._process_task_news(db, client, task, user)
+                stats = await self._process_task_news(
+                    db,
+                    client,
+                    task,
+                    user,
+                    api_key,
+                )
                 total_queued += stats["queued"]
                 total_processed += stats["processed"]
                 total_matched += stats["matched"]
@@ -118,6 +126,7 @@ class AIConsumer:
         client: GeminiClient,
         task: NewsTask,
         user: User,
+        gemini_api_key: str | None = None,
     ) -> dict:
         """Process unprocessed news items for a specific task.
 
@@ -185,10 +194,53 @@ class AIConsumer:
             if isinstance(result, ProcessingResult) and result.result
         ]
 
-        if matched_news_items:
+        dedupe_api_key = gemini_api_key
+        deliverable_news_items: list[NewsItem] = []
+        for matched_news_item in matched_news_items:
+            if not dedupe_api_key:
+                deliverable_news_items.append(matched_news_item)
+                continue
+            try:
+                (
+                    is_new,
+                    thinking,
+                ) = await self.notification_service.is_new_relevant_news_item(
+                    gemini_api_key=dedupe_api_key,
+                    task_id=task.id,
+                    news_item_id=matched_news_item.id,
+                    candidate_title=matched_news_item.title,
+                    candidate_content=matched_news_item.content,
+                    db=db,
+                )
+            except Exception as e:
+                self.logger.error(
+                    "Deduplication failed for %s task_id=%s "
+                    "news_item_id=%s: %s",
+                    self._format_user_context(user),
+                    task.id,
+                    matched_news_item.id,
+                    e,
+                    exc_info=True,
+                )
+                is_new = True
+                thinking = "deduplication_error"
+
+            if is_new:
+                deliverable_news_items.append(matched_news_item)
+            else:
+                self.logger.info(
+                    "Skipping duplicate relevant news for %s task_id=%s "
+                    "news_item_id=%s reasoning=%r",
+                    self._format_user_context(user),
+                    task.id,
+                    matched_news_item.id,
+                    thinking,
+                )
+
+        if deliverable_news_items:
             bot_ids = await self._get_task_bot_ids(db, task.id)
             for bot_id in bot_ids:
-                for matched_news_item in matched_news_items:
+                for matched_news_item in deliverable_news_items:
                     news_url = matched_news_item.url or matched_news_item.title
                     try:
                         await self._send_message(
