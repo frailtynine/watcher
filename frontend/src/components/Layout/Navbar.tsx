@@ -89,6 +89,9 @@ export const Navbar = () => {
               <MenuItem as={RouterLink} to="/settings">
                 Settings
               </MenuItem>
+              <MenuItem as={RouterLink} to="/debug/ai-dedup">
+                AI Dedup Debug
+              </MenuItem>
               <MenuItem onClick={handleLogout}>Logout</MenuItem>
             </MenuList>
           </Menu>

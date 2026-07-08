@@ -6,6 +6,7 @@ from .source_news_tasks import router as source_news_tasks_router
 from .news_items import router as news_items_router
 from .newspapers import router as newspapers_router
 from .telegram_bots import router as telegram_bots_router
+from .ai_debug import router as ai_debug_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, prefix="", tags=["auth"])
@@ -28,4 +29,9 @@ api_router.include_router(
     telegram_bots_router,
     prefix="/telegram-bots",
     tags=["telegram-bots"],
+)
+api_router.include_router(
+    ai_debug_router,
+    prefix="/debug/ai",
+    tags=["ai-debug"],
 )

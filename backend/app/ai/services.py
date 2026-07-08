@@ -310,8 +310,24 @@ class NotificationService:
             hours=24,
             exclude_news_item_id=news_item_id,
         )
+
+        return await self.evaluate_deduplication_with_headlines(
+            gemini_api_key=gemini_api_key,
+            candidate_title=candidate_title,
+            candidate_content=candidate_content,
+            recent_headlines=recent_headlines,
+        )
+
+    async def evaluate_deduplication_with_headlines(
+        self,
+        gemini_api_key: str,
+        candidate_title: str,
+        candidate_content: str,
+        recent_headlines: list[str],
+    ) -> tuple[bool, str]:
+        """Run Gemini deduplication against provided headline history."""
         if not recent_headlines:
-            return True, "No relevant headlines found in the last 24 hours"
+            return True, "No relevant headlines found in context"
 
         client = genai.Client(api_key=gemini_api_key)
         response = await client.aio.models.generate_content(
@@ -338,11 +354,8 @@ class NotificationService:
                     "properties": {
                         "is_new": {"type": "boolean"},
                         "thinking": {"type": "string"},
-                        "matched_headline": {
-                            "type": ["string", "null"],
-                        },
                     },
-                    "required": ["is_new", "thinking", "matched_headline"],
+                    "required": ["is_new", "thinking"],
                 },
             ),
         )
