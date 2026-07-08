@@ -14,6 +14,10 @@ from .telegram_bot_news_task import (
     TelegramBotNewsTaskCreate,
     TelegramBotNewsTaskRead,
 )
+from .ai_debug import (
+    AIDeduplicationDebugRequest,
+    AIDeduplicationDebugResponse,
+)
 
 __all__ = [
     "UserRead",
@@ -38,4 +42,6 @@ __all__ = [
     "TelegramBotRead",
     "TelegramBotNewsTaskCreate",
     "TelegramBotNewsTaskRead",
+    "AIDeduplicationDebugRequest",
+    "AIDeduplicationDebugResponse",
 ]

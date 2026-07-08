@@ -130,3 +130,18 @@ export interface NewsItemNewsTask {
   created_at: string;
   updated_at: string;
 }
+
+export interface AIDeduplicationDebugRequest {
+  candidate_title: string;
+  candidate_content: string;
+  recent_headlines: string[];
+  task_id?: number;
+  use_task_context: boolean;
+  cutoff_hours: 24 | 48 | 72 | 168;
+}
+
+export interface AIDeduplicationDebugResponse {
+  is_new: boolean;
+  thinking: string;
+  headlines_used_count: number;
+}

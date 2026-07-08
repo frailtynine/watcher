@@ -15,6 +15,8 @@ import type {
   TelegramBot,
   TelegramBotCreate,
   TelegramBotTaskAssociation,
+  AIDeduplicationDebugRequest,
+  AIDeduplicationDebugResponse,
 } from '../types';
 
 export interface LoginRequest {
@@ -293,6 +295,17 @@ export const api = createApi({
         { type: 'Newspaper', id: taskId },
       ],
     }),
+
+    debugDeduplication: builder.mutation<
+      AIDeduplicationDebugResponse,
+      AIDeduplicationDebugRequest
+    >({
+      query: (body) => ({
+        url: '/debug/ai/deduplication',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -327,4 +340,5 @@ export const {
   useGetNewsItemResultsQuery,
   useGetNewspaperQuery,
   useRegenerateNewspaperMutation,
+  useDebugDeduplicationMutation,
 } = api;
