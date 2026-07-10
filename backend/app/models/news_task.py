@@ -28,7 +28,8 @@ def default_news_task_settings() -> NewsTaskSettings:
             "telegram": {
                 "summary": False,
                 "lang": "en",
-                "prompt": "Retell the news article in a neutral way in a short form, no more than three sentences",
+                "prompt": ("Retell the news article in a neutral way "
+                           "in a short form, no more than three sentences"),
             }
         }
     }
