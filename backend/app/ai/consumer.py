@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gemini_client import GeminiClient
+from app.ai.summary_service import SummaryService
 from app.ai.base import ProcessingResult
 from app.ai.services import NotificationService
 from app.core.config import settings
@@ -27,6 +28,10 @@ from app.delivery.telegram.telegram_service import TelegramService
 from app.delivery.telegram.telegram_sender import TelegramSender
 
 logger = logging.getLogger(__name__)
+DEFAULT_SUMMARY_PROMPT = (
+    "Retell the news article in a neutral way in a short form, "
+    "no more than three sentences"
+)
 
 
 class AIConsumer:
@@ -238,10 +243,97 @@ class AIConsumer:
                 )
 
         if deliverable_news_items:
+            delivery_settings = self._get_task_telegram_delivery_settings(task)
+            summary_enabled = delivery_settings["summary"]
+            summary_prompt = delivery_settings["prompt"]
+            summary_lang = delivery_settings["lang"]
+            summary_service = SummaryService() if summary_enabled else None
+
             bot_ids = await self._get_task_bot_ids(db, task.id)
+            message_by_news_item_id: dict[int, str] = {}
+
+            for matched_news_item in deliverable_news_items:
+                fallback_message = (
+                    matched_news_item.url or matched_news_item.title
+                )
+                message = fallback_message
+
+                if (
+                    summary_enabled
+                    and gemini_api_key
+                    and summary_service is not None
+                ):
+                    prompt_with_language = (
+                        f"{summary_prompt}\n\n"
+                        f"Summarize in {summary_lang} language"
+                    )
+                    try:
+                        summary_text = None
+
+                        if matched_news_item.url:
+                            try:
+                                article = summary_service.get_article(
+                                    matched_news_item.url
+                                )
+                                summary_text = (
+                                    await summary_service.summarize_article(
+                                        article=article,
+                                        prompt=prompt_with_language,
+                                        api_key=gemini_api_key,
+                                    )
+                                )
+                            except Exception as download_error:
+                                self.logger.warning(
+                                    "Article download/parse failed for %s "
+                                    "task_id=%s news_item_id=%s. "
+                                    "Falling back to RSS content: %s",
+                                    self._format_user_context(user),
+                                    task.id,
+                                    matched_news_item.id,
+                                    download_error,
+                                )
+
+                        if (
+                            not isinstance(summary_text, str)
+                            or not summary_text.strip()
+                        ):
+                            summary_text = (
+                                await summary_service.summarize_text(
+                                    title=matched_news_item.title,
+                                    text=matched_news_item.content,
+                                    prompt=prompt_with_language,
+                                    api_key=gemini_api_key,
+                                )
+                            )
+
+                        if (
+                            isinstance(summary_text, str)
+                            and summary_text.strip()
+                        ):
+                            message = summary_text.strip()
+                    except Exception as e:
+                        self.logger.error(
+                            "Summary generation failed for %s task_id=%s "
+                            "news_item_id=%s: %s",
+                            self._format_user_context(user),
+                            task.id,
+                            matched_news_item.id,
+                            e,
+                            exc_info=True,
+                        )
+                elif summary_enabled and not gemini_api_key:
+                    self.logger.warning(
+                        "Summary is enabled but Gemini key is missing for %s "
+                        "task_id=%s. Falling back to URL/title delivery.",
+                        self._format_user_context(user),
+                        task.id,
+                    )
+
+                message_by_news_item_id[matched_news_item.id] = message
+
             for bot_id in bot_ids:
                 for matched_news_item in deliverable_news_items:
-                    news_url = matched_news_item.url or matched_news_item.title
+                    news_url = message_by_news_item_id[matched_news_item.id]
                     try:
                         await self._send_message(
                             user_id=user.id,
@@ -503,6 +595,29 @@ class AIConsumer:
             encrypted_api_key,
             settings.ENCRYPTION_KEY,
         )
+
+    def _get_task_telegram_delivery_settings(self, task: NewsTask) -> dict:
+        task_settings = (
+            task.settings if isinstance(task.settings, dict) else {}
+        )
+        delivery_settings = task_settings.get("delivery") or {}
+        telegram_settings = delivery_settings.get("telegram") or {}
+
+        summary = telegram_settings.get("summary")
+        lang = telegram_settings.get("lang")
+        prompt = telegram_settings.get("prompt")
+
+        return {
+            "summary": bool(summary),
+            "lang": lang.strip()
+            if isinstance(lang, str) and lang.strip()
+            else "en",
+            "prompt": (
+                prompt.strip()
+                if isinstance(prompt, str) and prompt.strip()
+                else DEFAULT_SUMMARY_PROMPT
+            ),
+        }
 
     async def _send_message(
         self,

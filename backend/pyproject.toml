@@ -28,6 +28,8 @@ dependencies = [
     "apscheduler>=3.11.2",
     "ruff>=0.14.14",
     "python-telegram-bot>=22.7",
+    "newspaper3k>=0.2.8",
+    "lxml[html-clean]>=6.1.1",
 ]
 
 [build-system]

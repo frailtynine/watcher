@@ -171,3 +171,15 @@ export interface AIDeduplicationDebugResponse {
   thinking: string;
   headlines_used_count: number;
 }
+
+export interface AISummaryDebugRequest {
+  link: string;
+  task_id?: number;
+}
+
+export interface AISummaryDebugResponse {
+  summary: string;
+  prompt_used: string;
+  language: string;
+  task_id?: number | null;
+}

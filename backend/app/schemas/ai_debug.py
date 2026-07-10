@@ -14,3 +14,15 @@ class AIDeduplicationDebugResponse(BaseModel):
     is_new: bool
     thinking: str
     headlines_used_count: int
+
+
+class AISummaryDebugRequest(BaseModel):
+    link: str = Field(..., min_length=1, max_length=2048)
+    task_id: int | None = None
+
+
+class AISummaryDebugResponse(BaseModel):
+    summary: str
+    prompt_used: str
+    language: str
+    task_id: int | None = None

@@ -44,6 +44,18 @@ class GeminiClient(BaseAIClient):
         )
         return response.text
 
+    async def generate_text_response(self, prompt: str) -> str:
+        """Generate a text response from Gemini API.
+
+        Args:
+            prompt: The prompt to send to the Gemini API.
+        """
+        response = self.client.interactions.create(
+            model=self.model_name,
+            input=prompt,
+        )
+        return response.output_text
+
     async def _generate(
         self, system_instruction: str, user_message: str
     ) -> tuple[str, int]:
