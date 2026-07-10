@@ -17,6 +17,8 @@ import type {
   TelegramBotTaskAssociation,
   AIDeduplicationDebugRequest,
   AIDeduplicationDebugResponse,
+  AISummaryDebugRequest,
+  AISummaryDebugResponse,
 } from '../types';
 
 export interface LoginRequest {
@@ -306,6 +308,16 @@ export const api = createApi({
         body,
       }),
     }),
+    debugSummary: builder.mutation<
+      AISummaryDebugResponse,
+      AISummaryDebugRequest
+    >({
+      query: (body) => ({
+        url: '/debug/ai/summary',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -341,4 +353,5 @@ export const {
   useGetNewspaperQuery,
   useRegenerateNewspaperMutation,
   useDebugDeduplicationMutation,
+  useDebugSummaryMutation,
 } = api;

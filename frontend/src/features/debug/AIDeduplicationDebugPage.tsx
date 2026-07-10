@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import {
   useDebugDeduplicationMutation,
+  useDebugSummaryMutation,
   useGetNewsTasksQuery,
 } from '../../services/api';
 
@@ -52,9 +53,13 @@ export const AIDeduplicationDebugPage = () => {
   const [useTaskContext, setUseTaskContext] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [cutoffHours, setCutoffHours] = useState<24 | 48 | 72 | 168>(24);
+  const [summaryLink, setSummaryLink] = useState('');
+  const [summaryTaskId, setSummaryTaskId] = useState('');
   const { data: tasks = [], isLoading: isLoadingTasks } = useGetNewsTasksQuery();
   const [debugDeduplication, { data, isLoading }] =
     useDebugDeduplicationMutation();
+  const [debugSummary, { data: summaryData, isLoading: isSummaryLoading }] =
+    useDebugSummaryMutation();
 
   const headlinesCount = useMemo(
     () => splitHeadlines(headlinesText).length,
@@ -69,6 +74,8 @@ export const AIDeduplicationDebugPage = () => {
       ? selectedTaskId.trim().length > 0
       : splitHeadlines(headlinesText).length > 0
     );
+
+  const canRunSummary = summaryLink.trim().length > 0;
 
   const handleRun = async () => {
     const taskId = Number(selectedTaskId);
@@ -88,6 +95,26 @@ export const AIDeduplicationDebugPage = () => {
     } catch (error: unknown) {
       toast({
         title: 'Deduplication test failed',
+        description: extractErrorMessage(error),
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleRunSummary = async () => {
+    const taskId = Number(summaryTaskId);
+    try {
+      await debugSummary({
+        link: summaryLink.trim(),
+        task_id: Number.isFinite(taskId) && summaryTaskId.trim().length > 0
+          ? taskId
+          : undefined,
+      }).unwrap();
+    } catch (error: unknown) {
+      toast({
+        title: 'Summary test failed',
         description: extractErrorMessage(error),
         status: 'error',
         duration: 4000,
@@ -236,6 +263,74 @@ export const AIDeduplicationDebugPage = () => {
             </VStack>
           </Box>
         ) : null}
+
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={4} align="stretch">
+            <Heading size="md">AI Summary Debug</Heading>
+            <Text color="gray.600">
+              Test article summarization by link. Optionally pick a task to
+              apply task prompt and language.
+            </Text>
+
+            <FormControl isRequired>
+              <FormLabel>Article Link</FormLabel>
+              <Input
+                value={summaryLink}
+                onChange={(e) => setSummaryLink(e.target.value)}
+                placeholder="https://example.com/news/article"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Task (optional)</FormLabel>
+              <Select
+                placeholder={
+                  isLoadingTasks ? 'Loading tasks...' : 'Use default prompt'
+                }
+                value={summaryTaskId}
+                onChange={(e) => setSummaryTaskId(e.target.value)}
+                isDisabled={isLoadingTasks}
+              >
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.name}
+                  </option>
+                ))}
+              </Select>
+              <Text mt={1} fontSize="sm" color="gray.500">
+                If no task is selected, default prompt and English are used.
+              </Text>
+            </FormControl>
+
+            <Button
+              alignSelf="flex-start"
+              colorScheme="purple"
+              onClick={handleRunSummary}
+              isLoading={isSummaryLoading}
+              isDisabled={!canRunSummary}
+            >
+              Run Summary Test
+            </Button>
+
+            {summaryData ? (
+              <VStack spacing={3} align="stretch">
+                <Text>
+                  Language: <Badge colorScheme="purple">{summaryData.language}</Badge>
+                </Text>
+                <Box>
+                  <Text fontWeight="semibold" mb={1}>Prompt Used</Text>
+                  <Text whiteSpace="pre-wrap" fontSize="sm" color="gray.700">
+                    {summaryData.prompt_used}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="semibold" mb={1}>Summary</Text>
+                  <Text whiteSpace="pre-wrap">{summaryData.summary}</Text>
+                </Box>
+              </VStack>
+            ) : null}
+          </VStack>
+        </Box>
       </VStack>
     </Box>
   );

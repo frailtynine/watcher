@@ -32,12 +32,36 @@ export interface TelegramBotTaskAssociation {
   created_at?: string;
 }
 
+export interface NewsTaskSettings {
+  delivery: {
+    telegram: {
+      summary: boolean;
+      lang: string;
+      prompt: string;
+    };
+  };
+}
+
+export const DEFAULT_TELEGRAM_SUMMARY_PROMPT =
+  'Retell the news article in a neutral way in a short form, no more than three sentences';
+
+export const createDefaultNewsTaskSettings = (): NewsTaskSettings => ({
+  delivery: {
+    telegram: {
+      summary: false,
+      lang: 'en',
+      prompt: DEFAULT_TELEGRAM_SUMMARY_PROMPT,
+    },
+  },
+});
+
 export interface NewsTask {
   id: string;
   user_id: string;
   name: string;
   prompt: string;
   active: boolean;
+  settings: NewsTaskSettings;
   created_at: string;
   updated_at: string;
   sources_count: number;
@@ -47,12 +71,14 @@ export interface NewsTaskCreate {
   name: string;
   prompt: string;
   active: boolean;
+  settings: NewsTaskSettings;
 }
 
 export interface NewsTaskUpdate {
   name?: string;
   prompt?: string;
   active?: boolean;
+  settings?: NewsTaskSettings;
 }
 
 export interface Source {
@@ -144,4 +170,16 @@ export interface AIDeduplicationDebugResponse {
   is_new: boolean;
   thinking: string;
   headlines_used_count: number;
+}
+
+export interface AISummaryDebugRequest {
+  link: string;
+  task_id?: number;
+}
+
+export interface AISummaryDebugResponse {
+  summary: string;
+  prompt_used: string;
+  language: string;
+  task_id?: number | null;
 }

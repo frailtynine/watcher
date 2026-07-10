@@ -567,3 +567,290 @@ async def test_process_task_news_uses_title_when_news_url_missing(
             newstask_id=test_news_task.id,
             news_url="Title As Fallback",
         )
+
+
+@pytest.mark.anyio
+async def test_get_task_telegram_delivery_settings_defaults(ai_consumer):
+    task = MagicMock(spec=NewsTask)
+    task.settings = None
+
+    settings_dict = ai_consumer._get_task_telegram_delivery_settings(task)
+
+    assert settings_dict["summary"] is False
+    assert settings_dict["lang"] == "en"
+    assert (
+        settings_dict["prompt"]
+        == "Retell the news article in a neutral way in a short form, "
+        "no more than three sentences"
+    )
+
+
+@pytest.mark.anyio
+async def test_process_task_news_uses_summary_service_when_enabled(
+    db_session_maker,
+    test_news_task,
+    test_source,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="Matched News",
+                content="Matched content",
+                url="https://example.com/matched-summary",
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=50,
+        )
+    )
+
+    summarize_mock = AsyncMock(return_value="SUMMARY TEXT")
+    get_article_mock = MagicMock(return_value=object())
+
+    from app.ai import consumer as consumer_module
+
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "get_article",
+        get_article_mock,
+    )
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "summarize_article",
+        summarize_mock,
+    )
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10])
+        consumer._send_message = AsyncMock()
+        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
+            return_value=(True, "new")
+        )
+
+        task_in_session = await session.merge(test_news_task)
+        task_in_session.settings = {
+            "delivery": {
+                "telegram": {
+                    "summary": True,
+                    "lang": "de",
+                    "prompt": "Rewrite neutrally in short form",
+                }
+            }
+        }
+
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+            gemini_api_key="test-api-key",
+        )
+
+        get_article_mock.assert_called_once_with(
+            "https://example.com/matched-summary"
+        )
+        summarize_mock.assert_awaited_once()
+        summarize_prompt = summarize_mock.await_args_list[0].kwargs["prompt"]
+        assert "Rewrite neutrally in short form" in summarize_prompt
+        assert "Summarize in de language" in summarize_prompt
+
+        consumer._send_message.assert_awaited_once_with(
+            user_id=1,
+            bot_id=10,
+            newstask_id=test_news_task.id,
+            news_url="SUMMARY TEXT",
+        )
+
+
+@pytest.mark.anyio
+async def test_process_task_news_uses_rss_content_when_article_download_fails(
+    db_session_maker,
+    test_news_task,
+    test_source,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="RSS Title",
+                content="RSS content body",
+                url="https://example.com/failing-download",
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=50,
+        )
+    )
+
+    from app.ai import consumer as consumer_module
+
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "get_article",
+        MagicMock(side_effect=Exception("download failed")),
+    )
+    summarize_text_mock = AsyncMock(return_value="SUMMARY FROM RSS")
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "summarize_text",
+        summarize_text_mock,
+    )
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10])
+        consumer._send_message = AsyncMock()
+        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
+            return_value=(True, "new")
+        )
+
+        task_in_session = await session.merge(test_news_task)
+        task_in_session.settings = {
+            "delivery": {
+                "telegram": {
+                    "summary": True,
+                    "lang": "en",
+                    "prompt": "Use neutral short summary",
+                }
+            }
+        }
+
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+            gemini_api_key="test-api-key",
+        )
+
+        summarize_text_mock.assert_awaited_once()
+        consumer._send_message.assert_awaited_once_with(
+            user_id=1,
+            bot_id=10,
+            newstask_id=test_news_task.id,
+            news_url="SUMMARY FROM RSS",
+        )
+
+
+@pytest.mark.anyio
+async def test_process_task_news_falls_back_to_url_when_summary_fails_everywhere(
+    db_session_maker,
+    test_news_task,
+    test_source,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="Fallback Title",
+                content="RSS fallback content",
+                url="https://example.com/fallback-url",
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=50,
+        )
+    )
+
+    from app.ai import consumer as consumer_module
+
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "get_article",
+        MagicMock(side_effect=Exception("download failed")),
+    )
+    monkeypatch.setattr(
+        consumer_module.SummaryService,
+        "summarize_text",
+        AsyncMock(side_effect=Exception("rss summary failed")),
+    )
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10])
+        consumer._send_message = AsyncMock()
+        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
+            return_value=(True, "new")
+        )
+
+        task_in_session = await session.merge(test_news_task)
+        task_in_session.settings = {
+            "delivery": {
+                "telegram": {
+                    "summary": True,
+                    "lang": "en",
+                    "prompt": "Use neutral short summary",
+                }
+            }
+        }
+
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+            gemini_api_key="test-api-key",
+        )
+
+        consumer._send_message.assert_awaited_once_with(
+            user_id=1,
+            bot_id=10,
+            newstask_id=test_news_task.id,
+            news_url="https://example.com/fallback-url",
+        )
