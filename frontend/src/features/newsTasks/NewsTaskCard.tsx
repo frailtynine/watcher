@@ -33,6 +33,8 @@ export const NewsTaskCard = ({
   onDelete,
   onToggleActive,
 }: NewsTaskCardProps) => {
+  const telegramSettings = task.settings?.delivery?.telegram;
+
   return (
     <Box
       p={5}
@@ -81,6 +83,16 @@ export const NewsTaskCard = ({
       <Text color="gray.600" fontSize="sm" mb={3} noOfLines={2}>
         {task.prompt}
       </Text>
+
+      <Text color="gray.500" fontSize="xs" mb={3}>
+        Telegram: {telegramSettings?.summary ? 'summary' : 'full'} | lang: {telegramSettings?.lang || 'en'}
+      </Text>
+
+      {telegramSettings?.summary ? (
+        <Text color="gray.500" fontSize="xs" mb={3} noOfLines={2}>
+          Summary prompt: {telegramSettings.prompt}
+        </Text>
+      ) : null}
 
       <HStack fontSize="xs" color="gray.500">
         <Text>{sourcesCount} feeds</Text>

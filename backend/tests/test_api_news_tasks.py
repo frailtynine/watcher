@@ -22,7 +22,45 @@ async def test_create_news_task_success(
     data = response.json()
     assert data["name"] == "AI News Summary"
     assert data["prompt"] == "Summarize the latest AI developments"
+    assert data["settings"]["delivery"]["telegram"]["summary"] is False
+    assert data["settings"]["delivery"]["telegram"]["lang"] == "en"
+    assert (
+        data["settings"]["delivery"]["telegram"]["prompt"]
+        == "Retell the news article in a neutral way in a short form, no more than three sentences"
+    )
     assert "id" in data
+
+
+async def test_create_news_task_with_custom_settings(
+    client: AsyncClient, auth_headers: dict
+):
+    """Test creating a news task with custom delivery settings."""
+    response = await client.post(
+        "/api/news-tasks/",
+        headers=auth_headers,
+        json={
+            "name": "DE News",
+            "prompt": "Summarize fintech updates",
+            "active": True,
+            "settings": {
+                "delivery": {
+                    "telegram": {
+                        "summary": True,
+                        "lang": "de",
+                        "prompt": "Retell the article neutrally in two short sentences.",
+                    }
+                }
+            },
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["settings"]["delivery"]["telegram"]["summary"] is True
+    assert data["settings"]["delivery"]["telegram"]["lang"] == "de"
+    assert (
+        data["settings"]["delivery"]["telegram"]["prompt"]
+        == "Retell the article neutrally in two short sentences."
+    )
 
 
 async def test_create_news_task_missing_name(
@@ -172,6 +210,7 @@ async def test_update_news_task(
     data = response.json()
     assert data["name"] == "Updated Task"
     assert data["active"] is False
+    assert "settings" in data
 
 
 async def test_update_news_task_invalid_name(

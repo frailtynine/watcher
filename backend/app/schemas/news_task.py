@@ -2,10 +2,34 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class TelegramDeliverySettings(BaseModel):
+    summary: bool = False
+    lang: str = Field(default="en", min_length=2)
+    prompt: str = Field(
+        default=(
+            "Retell the news article in a neutral way in a short form, "
+            "no more than three sentences"
+        ),
+        min_length=1,
+        max_length=1000,
+    )
+
+
+class DeliverySettings(BaseModel):
+    telegram: TelegramDeliverySettings = Field(
+        default_factory=TelegramDeliverySettings
+    )
+
+
+class NewsTaskSettings(BaseModel):
+    delivery: DeliverySettings = Field(default_factory=DeliverySettings)
+
+
 class NewsTaskBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     prompt: str = Field(..., min_length=1)
     active: bool = True
+    settings: NewsTaskSettings = Field(default_factory=NewsTaskSettings)
 
 
 class NewsTaskCreate(NewsTaskBase):
@@ -14,6 +38,7 @@ class NewsTaskCreate(NewsTaskBase):
 
 class NewsTaskCreateInternal(NewsTaskBase):
     """Internal schema with user_id for creation"""
+
     user_id: int
 
 
@@ -21,6 +46,7 @@ class NewsTaskUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     prompt: str | None = Field(None, min_length=1)
     active: bool | None = None
+    settings: NewsTaskSettings | None = None
 
 
 class NewsTaskRead(NewsTaskBase):

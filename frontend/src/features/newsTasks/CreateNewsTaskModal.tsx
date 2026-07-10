@@ -17,6 +17,12 @@ import {
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useCreateNewsTaskMutation } from '../../services/api';
+import {
+  DEFAULT_TELEGRAM_SUMMARY_PROMPT,
+  createDefaultNewsTaskSettings,
+  type NewsTaskSettings,
+} from '../../types';
+import { TaskDeliverySettings } from './TaskDeliverySettings';
 
 interface CreateNewsTaskModalProps {
   isOpen: boolean;
@@ -32,9 +38,13 @@ export const CreateNewsTaskModal = ({
 
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [settings, setSettings] = useState<NewsTaskSettings>(
+    createDefaultNewsTaskSettings()
+  );
   const [errors, setErrors] = useState<{
     name?: string;
     prompt?: string;
+    settingsLang?: string;
   }>({});
 
   const validate = () => {
@@ -56,6 +66,10 @@ export const CreateNewsTaskModal = ({
       newErrors.prompt = 'Prompt must be less than 1000 characters';
     }
 
+    if (!settings.delivery.telegram.lang.trim()) {
+      newErrors.settingsLang = 'Telegram language is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -70,6 +84,17 @@ export const CreateNewsTaskModal = ({
         name: name.trim(),
         prompt: prompt.trim(),
         active: true,
+        settings: {
+          delivery: {
+            telegram: {
+              summary: settings.delivery.telegram.summary,
+              lang: settings.delivery.telegram.lang.trim(),
+              prompt:
+                settings.delivery.telegram.prompt.trim() ||
+                DEFAULT_TELEGRAM_SUMMARY_PROMPT,
+            },
+          },
+        },
       }).unwrap();
 
       toast({
@@ -80,6 +105,7 @@ export const CreateNewsTaskModal = ({
 
       setName('');
       setPrompt('');
+      setSettings(createDefaultNewsTaskSettings());
       setErrors({});
       onClose();
     } catch (error) {
@@ -95,6 +121,7 @@ export const CreateNewsTaskModal = ({
   const handleClose = () => {
     setName('');
     setPrompt('');
+    setSettings(createDefaultNewsTaskSettings());
     setErrors({});
     onClose();
   };
@@ -126,6 +153,15 @@ export const CreateNewsTaskModal = ({
                 rows={4}
               />
               <FormErrorMessage>{errors.prompt}</FormErrorMessage>
+            </FormControl>
+
+            <FormControl isInvalid={!!errors.settingsLang} isRequired>
+              <FormLabel>Delivery Settings</FormLabel>
+              <TaskDeliverySettings
+                settings={settings}
+                onChange={setSettings}
+              />
+              <FormErrorMessage>{errors.settingsLang}</FormErrorMessage>
             </FormControl>
           </VStack>
         </ModalBody>

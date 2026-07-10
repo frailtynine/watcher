@@ -29,10 +29,16 @@ import {
   useGetTaskSourcesQuery,
   useGetSourcesQuery,
 } from '../../services/api';
-import type { NewsTask } from '../../types';
+import {
+  DEFAULT_TELEGRAM_SUMMARY_PROMPT,
+  createDefaultNewsTaskSettings,
+  type NewsTask,
+  type NewsTaskSettings,
+} from '../../types';
 import { SourcesList } from '../sources/SourcesList';
 import { AddSourceModal } from '../sources/AddSourceModal';
 import { TaskBotsManager } from './TaskBotsManager';
+import { TaskDeliverySettings } from './TaskDeliverySettings';
 
 interface EditNewsTaskModalProps {
   isOpen: boolean;
@@ -55,14 +61,19 @@ export const EditNewsTaskModal = ({
 
   const [name, setName] = useState(task.name);
   const [prompt, setPrompt] = useState(task.prompt);
+  const [settings, setSettings] = useState<NewsTaskSettings>(
+    task.settings || createDefaultNewsTaskSettings()
+  );
   const [errors, setErrors] = useState<{
     name?: string;
     prompt?: string;
+    settingsLang?: string;
   }>({});
 
   useEffect(() => {
     setName(task.name);
     setPrompt(task.prompt);
+    setSettings(task.settings || createDefaultNewsTaskSettings());
   }, [task]);
 
   const validate = () => {
@@ -84,6 +95,10 @@ export const EditNewsTaskModal = ({
       newErrors.prompt = 'Prompt must be less than 1000 characters';
     }
 
+    if (!settings.delivery.telegram.lang.trim()) {
+      newErrors.settingsLang = 'Telegram language is required';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -99,6 +114,17 @@ export const EditNewsTaskModal = ({
         data: {
           name: name.trim(),
           prompt: prompt.trim(),
+          settings: {
+            delivery: {
+              telegram: {
+                summary: settings.delivery.telegram.summary,
+                lang: settings.delivery.telegram.lang.trim(),
+                prompt:
+                  settings.delivery.telegram.prompt.trim() ||
+                  DEFAULT_TELEGRAM_SUMMARY_PROMPT,
+              },
+            },
+          },
         },
       }).unwrap();
 
@@ -151,6 +177,15 @@ export const EditNewsTaskModal = ({
                     rows={4}
                   />
                   <FormErrorMessage>{errors.prompt}</FormErrorMessage>
+                </FormControl>
+
+                <FormControl isInvalid={!!errors.settingsLang} isRequired>
+                  <FormLabel>Delivery Settings</FormLabel>
+                  <TaskDeliverySettings
+                    settings={settings}
+                    onChange={setSettings}
+                  />
+                  <FormErrorMessage>{errors.settingsLang}</FormErrorMessage>
                 </FormControl>
               </VStack>
 
