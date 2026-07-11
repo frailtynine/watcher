@@ -678,7 +678,7 @@ async def test_process_task_news_uses_summary_service_when_enabled(
             user_id=1,
             bot_id=10,
             newstask_id=test_news_task.id,
-            news_url="SUMMARY TEXT",
+            news_url=("SUMMARY TEXT\n\nhttps://example.com/matched-summary"),
         )
 
 
@@ -766,7 +766,9 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
             user_id=1,
             bot_id=10,
             newstask_id=test_news_task.id,
-            news_url="SUMMARY FROM RSS",
+            news_url=(
+                "SUMMARY FROM RSS\n\nhttps://example.com/failing-download"
+            ),
         )
 
 
