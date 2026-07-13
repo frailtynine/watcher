@@ -89,7 +89,7 @@ class SummaryService:
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed to fetch/parse article URL for news_item_id=%s: %s",
+                    "Failed to fetch article URL for news_item_id=%s: %s",
                     news_item.id,
                     exc,
                 )
