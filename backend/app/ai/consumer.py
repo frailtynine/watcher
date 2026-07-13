@@ -277,7 +277,9 @@ class AIConsumer:
                             isinstance(summary_message, str)
                             and summary_message.strip()
                         ):
-                            message = summary_message.strip()
+                            message = summary_text.strip() + (
+                                f"\n\n{matched_news_item.url}"
+                            )
                     except Exception as e:
                         self.logger.error(
                             "Summary generation failed for %s task_id=%s "
