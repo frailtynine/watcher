@@ -7,6 +7,7 @@ from email.utils import parsedate_to_datetime
 
 from app.models.source import Source, SourceType
 from app.models.news_item import NewsItem
+from app.producers.utils import clear_utm_params
 from .base import BaseProducer
 
 RSS_CONCURRENCTY_LIMIT = 100
@@ -96,6 +97,7 @@ class RSSProducer(BaseProducer):
         # RSS required fields: title, link, description
         title = entry.get("title", "").strip()
         url = entry.get("link", "").strip()
+        url = clear_utm_params(url)
         description = entry.get("description", "").strip()
 
         # Skip if any required field is missing
