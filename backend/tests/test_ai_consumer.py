@@ -605,7 +605,7 @@ async def test_process_task_news_uses_summary_service_when_enabled(
                 title="Matched News",
                 content="Matched content",
                 url="https://example.com/matched-summary",
-                published_at=datetime.utcnow() - timedelta(hours=1),
+                published_at=datetime.now() - timedelta(hours=1),
             )
         )
         await session.commit()
@@ -619,20 +619,16 @@ async def test_process_task_news_uses_summary_service_when_enabled(
         )
     )
 
-    summarize_mock = AsyncMock(return_value="SUMMARY TEXT")
-    get_article_mock = MagicMock(return_value=object())
+    summarize_news_item_mock = AsyncMock(
+        return_value="SUMMARY TEXT\n\nhttps://example.com/matched-summary"
+    )
 
     from app.ai import consumer as consumer_module
 
     monkeypatch.setattr(
         consumer_module.SummaryService,
-        "get_article",
-        get_article_mock,
-    )
-    monkeypatch.setattr(
-        consumer_module.SummaryService,
-        "summarize_article",
-        summarize_mock,
+        "summarize_news_item",
+        summarize_news_item_mock,
     )
 
     async with db_session_maker() as session:
@@ -666,19 +662,16 @@ async def test_process_task_news_uses_summary_service_when_enabled(
             gemini_api_key="test-api-key",
         )
 
-        get_article_mock.assert_called_once_with(
-            "https://example.com/matched-summary"
-        )
-        summarize_mock.assert_awaited_once()
-        summarize_prompt = summarize_mock.await_args_list[0].kwargs["prompt"]
-        assert "Rewrite neutrally in short form" in summarize_prompt
-        assert "Summarize in de language" in summarize_prompt
+        summarize_news_item_mock.assert_awaited_once()
+        summarize_kwargs = summarize_news_item_mock.await_args_list[0].kwargs
+        assert summarize_kwargs["prompt"] == "Rewrite neutrally in short form"
+        assert summarize_kwargs["language"] == "de"
 
         consumer._send_message.assert_awaited_once_with(
             user_id=1,
             bot_id=10,
             newstask_id=test_news_task.id,
-            news_url="SUMMARY TEXT",
+            news_url=("SUMMARY TEXT\n\nhttps://example.com/matched-summary"),
         )
 
 
@@ -718,16 +711,13 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
 
     from app.ai import consumer as consumer_module
 
-    monkeypatch.setattr(
-        consumer_module.SummaryService,
-        "get_article",
-        MagicMock(side_effect=Exception("download failed")),
+    summarize_news_item_mock = AsyncMock(
+        return_value="SUMMARY FROM RSS\n\nhttps://example.com/failing-download"
     )
-    summarize_text_mock = AsyncMock(return_value="SUMMARY FROM RSS")
     monkeypatch.setattr(
         consumer_module.SummaryService,
-        "summarize_text",
-        summarize_text_mock,
+        "summarize_news_item",
+        summarize_news_item_mock,
     )
 
     async with db_session_maker() as session:
@@ -761,17 +751,19 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
             gemini_api_key="test-api-key",
         )
 
-        summarize_text_mock.assert_awaited_once()
+        summarize_news_item_mock.assert_awaited_once()
         consumer._send_message.assert_awaited_once_with(
             user_id=1,
             bot_id=10,
             newstask_id=test_news_task.id,
-            news_url="SUMMARY FROM RSS",
+            news_url=(
+                "SUMMARY FROM RSS\n\nhttps://example.com/failing-download"
+            ),
         )
 
 
 @pytest.mark.anyio
-async def test_process_task_news_falls_back_to_url_when_summary_fails_everywhere(
+async def test_process_task_news_falls_back_to_url_when_summary_fails(
     db_session_maker,
     test_news_task,
     test_source,
@@ -790,7 +782,7 @@ async def test_process_task_news_falls_back_to_url_when_summary_fails_everywhere
                 title="Fallback Title",
                 content="RSS fallback content",
                 url="https://example.com/fallback-url",
-                published_at=datetime.utcnow() - timedelta(hours=1),
+                published_at=datetime.now() - timedelta(hours=1),
             )
         )
         await session.commit()
@@ -808,13 +800,8 @@ async def test_process_task_news_falls_back_to_url_when_summary_fails_everywhere
 
     monkeypatch.setattr(
         consumer_module.SummaryService,
-        "get_article",
-        MagicMock(side_effect=Exception("download failed")),
-    )
-    monkeypatch.setattr(
-        consumer_module.SummaryService,
-        "summarize_text",
-        AsyncMock(side_effect=Exception("rss summary failed")),
+        "summarize_news_item",
+        AsyncMock(side_effect=Exception("summary failed")),
     )
 
     async with db_session_maker() as session:

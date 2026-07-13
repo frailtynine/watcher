@@ -263,54 +263,21 @@ class AIConsumer:
                     and gemini_api_key
                     and summary_service is not None
                 ):
-                    prompt_with_language = (
-                        f"{summary_prompt}\n\n"
-                        f"Summarize in {summary_lang} language"
-                    )
                     try:
-                        summary_text = None
-
-                        if matched_news_item.url:
-                            try:
-                                article = summary_service.get_article(
-                                    matched_news_item.url
-                                )
-                                summary_text = (
-                                    await summary_service.summarize_article(
-                                        article=article,
-                                        prompt=prompt_with_language,
-                                        api_key=gemini_api_key,
-                                    )
-                                )
-                            except Exception as download_error:
-                                self.logger.warning(
-                                    "Article download/parse failed for %s "
-                                    "task_id=%s news_item_id=%s. "
-                                    "Falling back to RSS content: %s",
-                                    self._format_user_context(user),
-                                    task.id,
-                                    matched_news_item.id,
-                                    download_error,
-                                )
-
-                        if (
-                            not isinstance(summary_text, str)
-                            or not summary_text.strip()
-                        ):
-                            summary_text = (
-                                await summary_service.summarize_text(
-                                    title=matched_news_item.title,
-                                    text=matched_news_item.content,
-                                    prompt=prompt_with_language,
-                                    api_key=gemini_api_key,
-                                )
+                        summary_message = (
+                            await summary_service.summarize_news_item(
+                                news_item=matched_news_item,
+                                prompt=summary_prompt,
+                                language=summary_lang,
+                                api_key=gemini_api_key,
                             )
+                        )
 
                         if (
-                            isinstance(summary_text, str)
-                            and summary_text.strip()
+                            isinstance(summary_message, str)
+                            and summary_message.strip()
                         ):
-                            message = summary_text.strip()
+                            message = summary_message.strip()
                     except Exception as e:
                         self.logger.error(
                             "Summary generation failed for %s task_id=%s "
