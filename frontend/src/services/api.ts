@@ -19,6 +19,8 @@ import type {
   AIDeduplicationDebugResponse,
   AISummaryDebugRequest,
   AISummaryDebugResponse,
+  DownloadRequest,
+  DownloadResponse,
 } from '../types';
 
 export interface LoginRequest {
@@ -318,6 +320,13 @@ export const api = createApi({
         body,
       }),
     }),
+    downloadMedia: builder.mutation<DownloadResponse, DownloadRequest>({
+      query: (body) => ({
+        url: '/download/',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -354,4 +363,5 @@ export const {
   useRegenerateNewspaperMutation,
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
+  useDownloadMediaMutation,
 } = api;

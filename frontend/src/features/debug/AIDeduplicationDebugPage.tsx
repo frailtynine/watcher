@@ -20,6 +20,7 @@ import {
 import {
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
+  useDownloadMediaMutation,
   useGetNewsTasksQuery,
 } from '../../services/api';
 
@@ -55,11 +56,14 @@ export const AIDeduplicationDebugPage = () => {
   const [cutoffHours, setCutoffHours] = useState<24 | 48 | 72 | 168>(24);
   const [summaryLink, setSummaryLink] = useState('');
   const [summaryTaskId, setSummaryTaskId] = useState('');
+  const [downloadLink, setDownloadLink] = useState('');
   const { data: tasks = [], isLoading: isLoadingTasks } = useGetNewsTasksQuery();
   const [debugDeduplication, { data, isLoading }] =
     useDebugDeduplicationMutation();
   const [debugSummary, { data: summaryData, isLoading: isSummaryLoading }] =
     useDebugSummaryMutation();
+  const [downloadMedia, { data: downloadData, isLoading: isDownloadingMedia }] =
+    useDownloadMediaMutation();
 
   const headlinesCount = useMemo(
     () => splitHeadlines(headlinesText).length,
@@ -76,6 +80,7 @@ export const AIDeduplicationDebugPage = () => {
     );
 
   const canRunSummary = summaryLink.trim().length > 0;
+  const canRunDownload = downloadLink.trim().length > 0;
 
   const handleRun = async () => {
     const taskId = Number(selectedTaskId);
@@ -115,6 +120,22 @@ export const AIDeduplicationDebugPage = () => {
     } catch (error: unknown) {
       toast({
         title: 'Summary test failed',
+        description: extractErrorMessage(error),
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleRunDownload = async () => {
+    try {
+      await downloadMedia({
+        link: downloadLink.trim(),
+      }).unwrap();
+    } catch (error: unknown) {
+      toast({
+        title: 'Download test failed',
         description: extractErrorMessage(error),
         status: 'error',
         duration: 4000,
@@ -328,6 +349,54 @@ export const AIDeduplicationDebugPage = () => {
                   <Text whiteSpace="pre-wrap">{summaryData.summary}</Text>
                 </Box>
               </VStack>
+            ) : null}
+          </VStack>
+        </Box>
+
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={4} align="stretch">
+            <Heading size="md">Telegram Download Debug</Heading>
+            <Text color="gray.600">
+              Test backend Telegram post download. Enter a Telegram post link
+              and verify returned file URLs.
+            </Text>
+
+            <FormControl isRequired>
+              <FormLabel>Telegram Post Link</FormLabel>
+              <Input
+                value={downloadLink}
+                onChange={(e) => setDownloadLink(e.target.value)}
+                placeholder="https://t.me/channel/123"
+              />
+            </FormControl>
+
+            <Button
+              alignSelf="flex-start"
+              colorScheme="teal"
+              onClick={handleRunDownload}
+              isLoading={isDownloadingMedia}
+              isDisabled={!canRunDownload}
+            >
+              Run Download Test
+            </Button>
+
+            {downloadData ? (
+              <Box>
+                <Text fontWeight="semibold" mb={2}>Returned URLs</Text>
+                <VStack spacing={2} align="stretch">
+                  {downloadData.urls.length === 0 ? (
+                    <Text fontSize="sm" color="gray.500">
+                      No media files found for this post.
+                    </Text>
+                  ) : (
+                    downloadData.urls.map((url) => (
+                      <Text key={url} fontSize="sm" whiteSpace="pre-wrap">
+                        {url}
+                      </Text>
+                    ))
+                  )}
+                </VStack>
+              </Box>
             ) : null}
           </VStack>
         </Box>

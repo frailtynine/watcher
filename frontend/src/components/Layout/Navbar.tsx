@@ -70,6 +70,14 @@ export const Navbar = () => {
               </Badge>
               News Items
             </Button>
+            <Button
+              as={RouterLink}
+              to="/video-editor"
+              variant="ghost"
+              size="sm"
+            >
+              Video Editor
+            </Button>
           </HStack>
         </HStack>
 

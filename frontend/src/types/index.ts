@@ -183,3 +183,11 @@ export interface AISummaryDebugResponse {
   language: string;
   task_id?: number | null;
 }
+
+export interface DownloadRequest {
+  link: string;
+}
+
+export interface DownloadResponse {
+  urls: string[];
+}
