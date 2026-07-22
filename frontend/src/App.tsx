@@ -38,6 +38,7 @@ function App() {
               <Route path="newspaper/:taskId" element={<NewspaperPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="video-editor" element={<VideoEditorLayout />} />
+              <Route path="video-editor/:projectId" element={<VideoEditorLayout />} />
               <Route path="debug/ai-dedup" element={<AIDeduplicationDebugPage />} />
             </Route>
           </Routes>

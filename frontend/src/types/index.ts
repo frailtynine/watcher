@@ -191,3 +191,44 @@ export interface DownloadRequest {
 export interface DownloadResponse {
   urls: string[];
 }
+
+export interface DownloadPreviewItem {
+  media_id: number;
+  thumbnail_url: string | null;
+  media_type: string;
+}
+
+export interface DownloadPreviewResponse {
+  items: DownloadPreviewItem[];
+}
+
+export interface DownloadSingleRequest {
+  link: string;
+  media_id: number;
+}
+
+export interface DownloadSingleResponse {
+  url: string;
+}
+
+export interface VideoProject {
+  id: number;
+  user_id: number;
+  name: string;
+  video_json: Record<string, unknown>;
+  clip_urls: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VideoProjectCreate {
+  name: string;
+  video_json: Record<string, unknown>;
+  clip_urls: string[];
+}
+
+export interface VideoProjectUpdate {
+  name?: string;
+  video_json?: Record<string, unknown>;
+  clip_urls?: string[];
+}

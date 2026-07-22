@@ -20,7 +20,13 @@ import type {
   AISummaryDebugRequest,
   AISummaryDebugResponse,
   DownloadRequest,
+  DownloadPreviewResponse,
+  DownloadSingleRequest,
+  DownloadSingleResponse,
   DownloadResponse,
+  VideoProject,
+  VideoProjectCreate,
+  VideoProjectUpdate,
 } from '../types';
 
 export interface LoginRequest {
@@ -63,7 +69,7 @@ export const api = createApi({
       return headers;
     },
   }),
-  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations', 'TaskBots', 'NewsItems', 'Newspaper'],
+  tagTypes: ['User', 'NewsTasks', 'Sources', 'Associations', 'TaskBots', 'NewsItems', 'Newspaper', 'Videos'],
   endpoints: (builder) => ({
     register: builder.mutation<User, RegisterRequest>({
       query: (credentials) => ({
@@ -327,6 +333,51 @@ export const api = createApi({
         body,
       }),
     }),
+    previewMedia: builder.mutation<DownloadPreviewResponse, DownloadRequest>({
+      query: (body) => ({
+        url: '/download/preview',
+        method: 'POST',
+        body,
+      }),
+    }),
+    downloadSingleMedia: builder.mutation<DownloadSingleResponse, DownloadSingleRequest>({
+      query: (body) => ({
+        url: '/download/single',
+        method: 'POST',
+        body,
+      }),
+    }),
+    getVideos: builder.query<VideoProject[], void>({
+      query: () => '/videos/',
+      providesTags: ['Videos'],
+    }),
+    getVideo: builder.query<VideoProject, number>({
+      query: (id) => `/videos/${id}`,
+      providesTags: (_result, _error, id) => [{ type: 'Videos', id }],
+    }),
+    createVideo: builder.mutation<VideoProject, VideoProjectCreate>({
+      query: (body) => ({
+        url: '/videos/',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Videos'],
+    }),
+    updateVideo: builder.mutation<VideoProject, { id: number; data: VideoProjectUpdate }>({
+      query: ({ id, data }) => ({
+        url: `/videos/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { id }) => [{ type: 'Videos', id }, 'Videos'],
+    }),
+    deleteVideo: builder.mutation<void, number>({
+      query: (id) => ({
+        url: `/videos/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Videos'],
+    }),
   }),
 });
 
@@ -364,4 +415,11 @@ export const {
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
   useDownloadMediaMutation,
+  usePreviewMediaMutation,
+  useDownloadSingleMediaMutation,
+  useGetVideosQuery,
+  useGetVideoQuery,
+  useCreateVideoMutation,
+  useUpdateVideoMutation,
+  useDeleteVideoMutation,
 } = api;
