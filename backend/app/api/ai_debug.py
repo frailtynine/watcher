@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, Form, UploadFile
+from typing import Any, cast
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.gemini_client import GeminiClient
 from app.ai.summary_service import SummaryService
 from app.ai.services import NotificationService
 from app.api.auth import current_active_user
@@ -11,6 +14,9 @@ from app.models import NewsTask, User
 from app.schemas.ai_debug import (
     AIDeduplicationDebugRequest,
     AIDeduplicationDebugResponse,
+    AICaptionEntry,
+    AIAudioTranscriptionDebugRequest,
+    AIAudioTranscriptionDebugResponse,
     AISummaryDebugRequest,
     AISummaryDebugResponse,
 )
@@ -22,6 +28,10 @@ DEFAULT_SUMMARY_PROMPT = (
     "Retell the news article in a neutral way in a short form, "
     "no more than three sentences"
 )
+
+
+class _AIAudioTranscriptionFormPayload(BaseModel):
+    audio_url: str | None = Field(default=None)
 
 
 def _resolve_gemini_api_key(user: User) -> str:
@@ -162,4 +172,66 @@ async def debug_summary(
         prompt_used=prompt_with_language,
         language=language,
         task_id=task.id if task else None,
+    )
+
+
+@router.post(
+    "/audio-transcription",
+    response_model=AIAudioTranscriptionDebugResponse,
+)
+async def debug_audio_transcription(
+    audio_url: str | None = Form(default=None),
+    audio_file: UploadFile | None = File(default=None),
+    user: User = Depends(current_active_user),
+):
+    payload = _AIAudioTranscriptionFormPayload(audio_url=audio_url)
+    gemini_api_key = _resolve_gemini_api_key(user)
+    client = GeminiClient(api_key=gemini_api_key)
+
+    if payload.audio_url is None and audio_file is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide either audio_url or audio_file",
+        )
+
+    try:
+        if audio_file is not None:
+            file_bytes = await audio_file.read()
+            (
+                captions,
+                captions_file_url,
+            ) = await client.transcribe_audio_file_to_videoflow_captions(
+                file_bytes,
+                filename=audio_file.filename or "audio.mp3",
+                content_type=audio_file.content_type,
+                output_dir=settings.DOWNLOADS_DIR,
+            )
+        else:
+            if payload.audio_url is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="audio_url is required when audio_file is not provided",
+                )
+            (
+                captions,
+                captions_file_url,
+            ) = await client.transcribe_audio_to_videoflow_captions(
+                payload.audio_url,
+                output_dir=settings.DOWNLOADS_DIR,
+            )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to transcribe audio: {exc}",
+        ) from exc
+
+    typed_captions: list[AICaptionEntry] = [
+        AICaptionEntry(**item) for item in cast(list[dict[str, Any]], captions)
+    ]
+    return AIAudioTranscriptionDebugResponse(
+        captions=typed_captions,
+        captions_count=len(captions),
+        captions_file_url=captions_file_url,
     )

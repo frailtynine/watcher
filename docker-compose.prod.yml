@@ -27,6 +27,8 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
+    volumes:
+      - downloads_data:/app/tmp/downloads
     restart: unless-stopped
     depends_on:
       db:
@@ -43,6 +45,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: ${ENVIRONMENT:-production}
+    volumes:
+      - downloads_data:/app/tmp/downloads
     depends_on:
       db:
         condition: service_healthy
@@ -75,3 +79,4 @@ services:
 
 volumes:
   postgres_data:
+  downloads_data:

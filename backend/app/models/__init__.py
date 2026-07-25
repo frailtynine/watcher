@@ -7,6 +7,7 @@ from .news_item_news_task import NewsItemNewsTask
 from .newspaper import Newspaper
 from .telegram_bot import TelegramBot
 from .telegram_bot_news_task import TelegramBotNewsTask
+from .video_project import VideoProject
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "Newspaper",
     "TelegramBot",
     "TelegramBotNewsTask",
+    "VideoProject",
 ]

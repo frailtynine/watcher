@@ -115,3 +115,174 @@ async def test_summary_debug_uses_task_prompt_and_language(
         "Summarize in de language"
     )
     assert data["summary"] == data["prompt_used"]
+
+
+async def test_audio_transcription_debug_returns_videoflow_captions(
+    client: AsyncClient,
+    auth_headers: dict,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.api import ai_debug
+
+    async def fake_transcribe(self, audio_url: str, output_dir: str):
+        return (
+            [
+                {
+                    "caption": "Hello",
+                    "startTime": 0.0,
+                    "endTime": 1.2,
+                },
+                {
+                    "caption": "world",
+                    "startTime": 1.2,
+                    "endTime": 2.4,
+                },
+            ],
+            "/api/download/files/captions_test.json",
+        )
+
+    monkeypatch.setattr(
+        ai_debug, "_resolve_gemini_api_key", lambda _u: "test-key"
+    )
+    monkeypatch.setattr(
+        ai_debug.GeminiClient,
+        "transcribe_audio_to_videoflow_captions",
+        fake_transcribe,
+    )
+
+    response = await client.post(
+        "/api/debug/ai/audio-transcription",
+        headers=auth_headers,
+        data={"audio_url": "https://example.com/audio.mp3"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["captions_count"] == 2
+    assert data["captions"][0]["caption"] == "Hello"
+    assert data["captions"][0]["startTime"] == 0.0
+    assert data["captions"][0]["endTime"] == 1.2
+    assert all("\n" not in item["caption"] for item in data["captions"])
+    assert all(len(item["caption"]) <= 25 for item in data["captions"])
+    assert (
+        data["captions_file_url"] == "/api/download/files/captions_test.json"
+    )
+
+
+async def test_audio_transcription_debug_accepts_local_upload(
+    client: AsyncClient,
+    auth_headers: dict,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.api import ai_debug
+
+    async def fake_transcribe_file(
+        self,
+        audio_bytes: bytes,
+        *,
+        filename: str,
+        content_type: str | None,
+        output_dir: str,
+    ):
+        assert filename == "sample.mp3"
+        assert content_type == "audio/mpeg"
+        assert audio_bytes == b"fake-audio-content"
+        return (
+            [
+                {
+                    "caption": "Uploaded",
+                    "startTime": 0.0,
+                    "endTime": 1.0,
+                }
+            ],
+            "/api/download/files/captions_uploaded.json",
+        )
+
+    monkeypatch.setattr(
+        ai_debug, "_resolve_gemini_api_key", lambda _u: "test-key"
+    )
+    monkeypatch.setattr(
+        ai_debug.GeminiClient,
+        "transcribe_audio_file_to_videoflow_captions",
+        fake_transcribe_file,
+    )
+
+    response = await client.post(
+        "/api/debug/ai/audio-transcription",
+        headers=auth_headers,
+        data={"audio_url": ""},
+        files={
+            "audio_file": (
+                "sample.mp3",
+                b"fake-audio-content",
+                "audio/mpeg",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["captions_count"] == 1
+    assert data["captions"][0]["caption"] == "Uploaded"
+    assert (
+        data["captions_file_url"]
+        == "/api/download/files/captions_uploaded.json"
+    )
+
+
+async def test_audio_transcription_debug_accepts_wav_upload(
+    client: AsyncClient,
+    auth_headers: dict,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.api import ai_debug
+
+    async def fake_transcribe_file(
+        self,
+        audio_bytes: bytes,
+        *,
+        filename: str,
+        content_type: str | None,
+        output_dir: str,
+    ):
+        assert filename == "sample.wav"
+        assert content_type == "audio/wav"
+        assert audio_bytes == b"fake-wav-content"
+        return (
+            [
+                {
+                    "caption": "Wav",
+                    "startTime": 0.0,
+                    "endTime": 1.0,
+                }
+            ],
+            "/api/download/files/captions_wav.json",
+        )
+
+    monkeypatch.setattr(
+        ai_debug, "_resolve_gemini_api_key", lambda _u: "test-key"
+    )
+    monkeypatch.setattr(
+        ai_debug.GeminiClient,
+        "transcribe_audio_file_to_videoflow_captions",
+        fake_transcribe_file,
+    )
+
+    response = await client.post(
+        "/api/debug/ai/audio-transcription",
+        headers=auth_headers,
+        data={"audio_url": ""},
+        files={
+            "audio_file": (
+                "sample.wav",
+                b"fake-wav-content",
+                "audio/wav",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["captions_count"] == 1
+    assert data["captions"][0]["caption"] == "Wav"
+    assert data["captions_file_url"] == "/api/download/files/captions_wav.json"

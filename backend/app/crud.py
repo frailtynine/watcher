@@ -12,6 +12,7 @@ from app.models import (
     User,
     TelegramBot,
     TelegramBotNewsTask,
+    VideoProject,
 )
 from app.schemas.telegram_bot import TelegramBotCreateInternal
 
@@ -45,3 +46,4 @@ class TelegramBotCRUD(FastCRUD):
 
 telegram_bot_crud = TelegramBotCRUD(TelegramBot)
 telegram_bot_news_task_crud = FastCRUD(TelegramBotNewsTask)
+video_project_crud = FastCRUD(VideoProject)

@@ -5,16 +5,21 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { VideoEditor } from '@videoflow/react-video-editor';
+import { VideoEditor, commands, useEditorStore } from '@videoflow/react-video-editor';
+import type { VideoJSON } from '@videoflow/react-video-editor';
+import type { AIAudioCaptionEntry } from '../../types';
 import '@videoflow/react-video-editor/style.css';
 import {
   useCreateVideoMutation,
+  useDebugAudioTranscriptionMutation,
   useGetVideoQuery,
   useGetVideosQuery,
   useUpdateVideoMutation
 } from '../../services/api';
 import { VideoEditorTitlebar } from './VideoEditorTitlebar';
 import { VideoProjectsPage } from './VideoProjectsPage';
+import { renderAudioAsWavFile } from './exportAudio';
+import { useSplitAtPlayheadShortcut } from './useSplitAtPlayheadShortcut';
 
 const DEFAULT_VIDEO_JSON = {
   name: 'video-canvas',
@@ -46,6 +51,9 @@ export default function VideoEditorPage() {
 
   const [newProjectName, setNewProjectName] = useState('');
   const [loadedVideo, setLoadedVideo] = useState<Record<string, unknown> | null>(null);
+  const [isGeneratingCaptions, setIsGeneratingCaptions] = useState(false);
+  const editorVideo = useEditorStore((state) => state.video);
+  const commit = useEditorStore((state) => state.commit);
 
   const { data: projects = [], isLoading: isLoadingProjects } = useGetVideosQuery();
   const numericProjectId = projectId ? Number(projectId) : NaN;
@@ -58,7 +66,9 @@ export default function VideoEditorPage() {
 
   const [createVideo, { isLoading: isCreating }] = useCreateVideoMutation();
   const [updateVideo] = useUpdateVideoMutation();
+  const [debugAudioTranscription] = useDebugAudioTranscriptionMutation();
   const activeVideoJson = loadedVideo || DEFAULT_VIDEO_JSON;
+  useSplitAtPlayheadShortcut();
 
   useEffect(() => {
     if (!project) {
@@ -108,6 +118,76 @@ export default function VideoEditorPage() {
     }
   };
 
+  const handleGenerateCaptions = async () => {
+    const currentVideo = editorVideo as unknown as VideoJSON;
+    setIsGeneratingCaptions(true);
+    try {
+      const wavFile = await renderAudioAsWavFile(currentVideo, project?.name);
+      const formData = new FormData();
+      formData.append('audio_file', wavFile);
+
+      const transcription = await debugAudioTranscription(formData).unwrap();
+      const captions = transcription.captions as AIAudioCaptionEntry[];
+
+      if (!captions.length) {
+        throw new Error('Transcription completed but returned no captions');
+      }
+
+      const fontSize = Math.max(1, 39 / (Math.max(1, currentVideo.width) * 0.01));
+      const sortedCaptions = [...captions].sort((a, b) => a.startTime - b.startTime);
+      let addedCount = 0;
+
+      for (const caption of sortedCaptions) {
+        const startTime = Number(caption.startTime ?? 0);
+        const endTime = Number(caption.endTime ?? startTime);
+        const sourceDuration = Math.max(0.05, endTime - startTime);
+        const text = String(caption.caption ?? '').trim();
+        if (!text) {
+          continue;
+        }
+
+        await commands.addLayerCommand(
+          commit,
+          {
+            type: 'text',
+            startTime,
+            sourceDuration,
+            properties: {
+              text,
+              position: [0.5, 0.5],
+              anchor: [0.5, 0.5],
+              textAlign: 'center',
+              verticalAlign: 'middle',
+              fontSize,
+              fontWeight: 600,
+              color: '#ffffff',
+              textStroke: true,
+              textStrokeColor: '#000000',
+              textStrokeWidth: 0.08,
+            },
+          },
+        );
+        addedCount += 1;
+      }
+
+      toast({
+        title: 'Captions generated',
+        description: `Added ${addedCount} text layers.`,
+        status: 'success',
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Failed to generate captions',
+        description: extractErrorMessage(error),
+        status: 'error',
+        isClosable: true,
+      });
+    } finally {
+      setIsGeneratingCaptions(false);
+    }
+  };
+
   if (!isProjectRoute) {
     return (
       <VideoProjectsPage
@@ -140,6 +220,8 @@ export default function VideoEditorPage() {
                 onExport={props.onExport}
                 onSave={props.onSave}
                 branding={props.branding}
+                onGenerateCaptions={() => { void handleGenerateCaptions(); }}
+                isGeneratingCaptions={isGeneratingCaptions}
                 onDelete={() => {
                   console.log('Delete project button clicked');
                 }}

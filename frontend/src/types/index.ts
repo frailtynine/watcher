@@ -184,6 +184,22 @@ export interface AISummaryDebugResponse {
   task_id?: number | null;
 }
 
+export interface AIAudioCaptionEntry {
+  caption: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface AIAudioTranscriptionDebugRequest {
+  audio_url?: string;
+}
+
+export interface AIAudioTranscriptionDebugResponse {
+  captions: AIAudioCaptionEntry[];
+  captions_count: number;
+  captions_file_url: string;
+}
+
 export interface DownloadRequest {
   link: string;
 }

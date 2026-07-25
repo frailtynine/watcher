@@ -19,6 +19,22 @@ from .ai_debug import (
     AIDeduplicationDebugResponse,
     AISummaryDebugRequest,
     AISummaryDebugResponse,
+    AIAudioTranscriptionDebugRequest,
+    AIAudioTranscriptionDebugResponse,
+)
+from .download import (
+    DownloadRequest,
+    DownloadResponse,
+    DownloadDeleteRequest,
+    DownloadPreviewItem,
+    DownloadPreviewResponse,
+    DownloadSingleRequest,
+    DownloadSingleResponse,
+)
+from .video_project import (
+    VideoProjectCreate,
+    VideoProjectRead,
+    VideoProjectUpdate,
 )
 
 __all__ = [
@@ -48,4 +64,16 @@ __all__ = [
     "AIDeduplicationDebugResponse",
     "AISummaryDebugRequest",
     "AISummaryDebugResponse",
+    "AIAudioTranscriptionDebugRequest",
+    "AIAudioTranscriptionDebugResponse",
+    "DownloadRequest",
+    "DownloadResponse",
+    "DownloadDeleteRequest",
+    "DownloadPreviewItem",
+    "DownloadPreviewResponse",
+    "DownloadSingleRequest",
+    "DownloadSingleResponse",
+    "VideoProjectCreate",
+    "VideoProjectRead",
+    "VideoProjectUpdate",
 ]

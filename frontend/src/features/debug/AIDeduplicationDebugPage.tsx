@@ -19,6 +19,7 @@ import {
 } from '@chakra-ui/react';
 import {
   useDebugDeduplicationMutation,
+  useDebugAudioTranscriptionMutation,
   useDebugSummaryMutation,
   useDownloadMediaMutation,
   useGetNewsTasksQuery,
@@ -57,6 +58,8 @@ export const AIDeduplicationDebugPage = () => {
   const [summaryLink, setSummaryLink] = useState('');
   const [summaryTaskId, setSummaryTaskId] = useState('');
   const [downloadLink, setDownloadLink] = useState('');
+  const [audioUrl, setAudioUrl] = useState('');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const { data: tasks = [], isLoading: isLoadingTasks } = useGetNewsTasksQuery();
   const [debugDeduplication, { data, isLoading }] =
     useDebugDeduplicationMutation();
@@ -64,6 +67,8 @@ export const AIDeduplicationDebugPage = () => {
     useDebugSummaryMutation();
   const [downloadMedia, { data: downloadData, isLoading: isDownloadingMedia }] =
     useDownloadMediaMutation();
+  const [debugAudioTranscription, { data: transcriptionData, isLoading: isTranscribingAudio }] =
+    useDebugAudioTranscriptionMutation();
 
   const headlinesCount = useMemo(
     () => splitHeadlines(headlinesText).length,
@@ -81,6 +86,8 @@ export const AIDeduplicationDebugPage = () => {
 
   const canRunSummary = summaryLink.trim().length > 0;
   const canRunDownload = downloadLink.trim().length > 0;
+  const canRunAudioTranscription =
+    audioUrl.trim().length > 0 || audioFile !== null;
 
   const handleRun = async () => {
     const taskId = Number(selectedTaskId);
@@ -136,6 +143,27 @@ export const AIDeduplicationDebugPage = () => {
     } catch (error: unknown) {
       toast({
         title: 'Download test failed',
+        description: extractErrorMessage(error),
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleRunAudioTranscription = async () => {
+    try {
+      const formData = new FormData();
+      if (audioUrl.trim()) {
+        formData.append('audio_url', audioUrl.trim());
+      }
+      if (audioFile) {
+        formData.append('audio_file', audioFile);
+      }
+      await debugAudioTranscription(formData as unknown as any).unwrap();
+    } catch (error: unknown) {
+      toast({
+        title: 'Audio transcription test failed',
         description: extractErrorMessage(error),
         status: 'error',
         duration: 4000,
@@ -397,6 +425,67 @@ export const AIDeduplicationDebugPage = () => {
                   )}
                 </VStack>
               </Box>
+            ) : null}
+          </VStack>
+        </Box>
+
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={4} align="stretch">
+            <Heading size="md">AI Audio Transcription Debug</Heading>
+            <Text color="gray.600">
+              Test Gemini audio transcription and VideoFlow captions output.
+            </Text>
+
+            <FormControl isRequired>
+              <FormLabel>Audio URL (optional)</FormLabel>
+              <Input
+                value={audioUrl}
+                onChange={(e) => setAudioUrl(e.target.value)}
+                placeholder="https://example.com/audio.mp3"
+              />
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>Upload Audio File (optional)</FormLabel>
+              <Input
+                type="file"
+                accept=".mp3,.wav,audio/mpeg,audio/wav"
+                onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+              />
+              <Text mt={1} fontSize="sm" color="gray.500">
+                Supported formats: MP3 and WAV.
+              </Text>
+            </FormControl>
+
+            <Button
+              alignSelf="flex-start"
+              colorScheme="pink"
+              onClick={handleRunAudioTranscription}
+              isLoading={isTranscribingAudio}
+              isDisabled={!canRunAudioTranscription}
+            >
+              Run Audio Transcription Test
+            </Button>
+
+            {transcriptionData ? (
+              <VStack spacing={3} align="stretch">
+                <Text>
+                  Captions count:{' '}
+                  <Badge colorScheme="pink">{transcriptionData.captions_count}</Badge>
+                </Text>
+                <Box>
+                  <Text fontWeight="semibold" mb={1}>Captions JSON file URL</Text>
+                  <Text fontSize="sm" color="gray.700" whiteSpace="pre-wrap">
+                    {transcriptionData.captions_file_url}
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="semibold" mb={1}>Captions (VideoFlow format)</Text>
+                  <Text fontSize="sm" whiteSpace="pre-wrap">
+                    {JSON.stringify(transcriptionData.captions, null, 2)}
+                  </Text>
+                </Box>
+              </VStack>
             ) : null}
           </VStack>
         </Box>

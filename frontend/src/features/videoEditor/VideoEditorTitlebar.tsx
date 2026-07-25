@@ -7,6 +7,8 @@ type Props = {
   onSave?: () => void;
   branding?: ReactNode;
   onDelete?: () => void;
+  onGenerateCaptions?: () => void;
+  isGeneratingCaptions?: boolean;
 };
 
 export const VideoEditorTitlebar = ({
@@ -14,6 +16,8 @@ export const VideoEditorTitlebar = ({
   onSave,
   branding,
   onDelete,
+  onGenerateCaptions,
+  isGeneratingCaptions,
 }: Props) => {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%', alignItems: 'center', }}>
@@ -22,6 +26,9 @@ export const VideoEditorTitlebar = ({
         onSave={onSave}
         branding={branding}
       />
+      <button onClick={onGenerateCaptions} disabled={isGeneratingCaptions}>
+        {isGeneratingCaptions ? 'Generating captions...' : 'Generate captions'}
+      </button>
       <UpluadButton />
       <button onClick={onDelete}>
         Delete

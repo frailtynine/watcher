@@ -19,6 +19,8 @@ import type {
   AIDeduplicationDebugResponse,
   AISummaryDebugRequest,
   AISummaryDebugResponse,
+  AIAudioTranscriptionDebugRequest,
+  AIAudioTranscriptionDebugResponse,
   DownloadRequest,
   DownloadPreviewResponse,
   DownloadSingleRequest,
@@ -326,6 +328,16 @@ export const api = createApi({
         body,
       }),
     }),
+    debugAudioTranscription: builder.mutation<
+      AIAudioTranscriptionDebugResponse,
+      FormData | AIAudioTranscriptionDebugRequest
+    >({
+      query: (body) => ({
+        url: '/debug/ai/audio-transcription',
+        method: 'POST',
+        body,
+      }),
+    }),
     downloadMedia: builder.mutation<DownloadResponse, DownloadRequest>({
       query: (body) => ({
         url: '/download/',
@@ -414,6 +426,7 @@ export const {
   useRegenerateNewspaperMutation,
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
+  useDebugAudioTranscriptionMutation,
   useDownloadMediaMutation,
   usePreviewMediaMutation,
   useDownloadSingleMediaMutation,

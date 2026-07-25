@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Telegram Manager Settings
     TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS: int = 300
     TELEGRAM_APPS_MANAGER_CHECK_INTERVAL_SECONDS: int = 60
+    DOWNLOADS_DIR: str = "/app/tmp/downloads"
 
 
 settings = Settings()
