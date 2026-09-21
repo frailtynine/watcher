@@ -127,25 +127,6 @@ export interface NewsItem {
   processing_results?: NewsItemNewsTask[];
 }
 
-export interface NewspaperItem {
-  title: string;
-  summary: string;
-  news_item_id: number | null;
-  position: [number, number];
-  body: string | null;
-  pub_date: string | null;
-  link: string | null;
-  source_name: string | null;
-}
-
-export interface Newspaper {
-  id: number;
-  news_task_id: number;
-  title: string;
-  body: { rows: NewspaperItem[] };
-  updated_at: string;
-}
-
 export interface NewsItemNewsTask {
   news_item_id: number;
   news_task_id: number;

@@ -38,6 +38,16 @@ class TelegramAppsManager:
         serialized = json.dumps(payload, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _is_bot_healthy(running_bot: RunningTelegramBot) -> bool:
+        application = running_bot.app.application
+        updater = application.updater
+        return bool(
+            application.running
+            and updater is not None
+            and updater.running
+        )
+
     async def _start_bot(self, bot: dict, fingerprint: str) -> None:
         bot_id = bot["id"]
         encrypted_token = bot.get("bot_token")
@@ -105,6 +115,24 @@ class TelegramAppsManager:
                 except Exception:
                     logger.exception(
                         "Failed to restart Telegram app bot_id=%s", bot_id
+                    )
+                continue
+
+            if not self._is_bot_healthy(running_bot):
+                logger.warning(
+                    "Telegram app unhealthy bot_id=%s app_running=%s updater_running=%s",
+                    bot_id,
+                    running_bot.app.application.running,
+                    running_bot.app.application.updater.running
+                    if running_bot.app.application.updater
+                    else None,
+                )
+                try:
+                    await self._restart_bot(bot, fingerprint)
+                except Exception:
+                    logger.exception(
+                        "Failed to recover unhealthy Telegram app bot_id=%s",
+                        bot_id,
                     )
 
     async def run(self) -> None:

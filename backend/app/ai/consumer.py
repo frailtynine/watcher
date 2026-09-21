@@ -19,7 +19,6 @@ from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
 from app.models.source_news_task import SourceNewsTask
-from app.delivery.web import NewsPaperProcessor
 from app.models.user import User
 from app.models.utils import utcnow_naive
 from app.db.database import get_async_session
@@ -338,24 +337,6 @@ class AIConsumer:
             for result in results
             if isinstance(result, Exception) or result is None
         )
-
-        try:
-            processor = NewsPaperProcessor()
-            for news_item in news_items:
-                await processor.process_newspaper(
-                    news_task=task, news_item=news_item
-                )
-        except Exception as e:
-            self.logger.error(
-                "Error generating newspaper for %s "
-                "task_id=%s "
-                "task_name=%r: %s",
-                self._format_user_context(user),
-                task.id,
-                task.name,
-                e,
-                exc_info=True,
-            )
 
         self.logger.info(
             "Processed task for %s task_id=%s task_name=%r queued=%s "

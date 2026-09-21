@@ -102,3 +102,66 @@ class TelegramService:
             return True
 
         return False
+
+    async def get_chat_subscriptions_for_bot(
+        self,
+        telegram_bot_id: int,
+        chat_id: int | str,
+    ) -> list[dict[str, int | str]]:
+        async for session in get_async_session():
+            bot = await session.get(TelegramBot, telegram_bot_id)
+            if not bot:
+                return []
+
+            normalized_chat_id = str(chat_id)
+            task_ids = [
+                chat["task_id"]
+                for chat in bot.chats or []
+                if str(chat.get("chat_id")) == normalized_chat_id
+                and isinstance(chat.get("task_id"), int)
+            ]
+            if not task_ids:
+                return []
+
+            stmt = (
+                select(NewsTask.id, NewsTask.name)
+                .where(
+                    NewsTask.id.in_(task_ids),
+                    NewsTask.active.is_(True),
+                )
+                .order_by(NewsTask.created_at.desc())
+            )
+            result = await session.execute(stmt)
+            return [{"id": row.id, "name": row.name} for row in result.all()]
+
+        return []
+
+    async def remove_chat_subscription(
+        self,
+        telegram_bot_id: int,
+        chat_id: int | str,
+        task_id: int,
+    ) -> bool:
+        async for session in get_async_session():
+            bot = await session.get(TelegramBot, telegram_bot_id)
+            if not bot:
+                return False
+
+            normalized_chat_id = str(chat_id)
+            chats = list(bot.chats or [])
+            filtered_chats = [
+                chat
+                for chat in chats
+                if not (
+                    str(chat.get("chat_id")) == normalized_chat_id
+                    and chat.get("task_id") == task_id
+                )
+            ]
+            if len(filtered_chats) == len(chats):
+                return False
+
+            bot.chats = filtered_chats
+            await session.commit()
+            return True
+
+        return False
