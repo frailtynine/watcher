@@ -5,8 +5,6 @@ import google.genai as genai
 from google.genai import types
 
 from app.ai.base import BaseAIClient
-from app.schemas.newspaper import NewsItemNewspaperAIResponse
-from app.models.newspaper import Newspaper
 
 
 logger = logging.getLogger(__name__)
@@ -27,22 +25,6 @@ class GeminiClient(BaseAIClient):
         super().__init__(model_name)
         self.api_key = api_key
         self.client = genai.Client(api_key=api_key)
-
-    async def process_newspaper(
-        self,
-        prompt: str,
-    ) -> Newspaper | None:
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=self._fix_schema_for_gemini(
-                    NewsItemNewspaperAIResponse.model_json_schema()
-                )
-            ),
-        )
-        return response.text
 
     async def generate_text_response(self, prompt: str) -> str:
         """Generate a text response from Gemini API.
@@ -87,22 +69,3 @@ class GeminiClient(BaseAIClient):
             usage_metadata.prompt_token_count +
             usage_metadata.candidates_token_count
         )
-
-    def _fix_schema_for_gemini(self, schema: dict) -> dict:
-        """Convert tuple prefixItems notation to items.
-          Gemini SDK doesn't support prefixItems.
-
-        """
-        if isinstance(schema, dict):
-            if "prefixItems" in schema:
-                item_types = schema["prefixItems"]
-                schema = {
-                    k: v for k, v in schema.items() if k != "prefixItems"
-                }
-                schema["items"] = item_types[0] if item_types else {}
-            return {
-                k: self._fix_schema_for_gemini(v) for k, v in schema.items()
-            }
-        if isinstance(schema, list):
-            return [self._fix_schema_for_gemini(item) for item in schema]
-        return schema

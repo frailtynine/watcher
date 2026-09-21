@@ -23,7 +23,6 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   useUpdateNewsTaskMutation,
   useGetTaskSourcesQuery,
@@ -51,7 +50,6 @@ export const EditNewsTaskModal = ({
   onClose,
   task,
 }: EditNewsTaskModalProps) => {
-  const navigate = useNavigate();
   const [updateTask, { isLoading }] = useUpdateNewsTaskMutation();
   const { data: associations } = useGetTaskSourcesQuery(task.id);
   const { data: allSources } = useGetSourcesQuery();
@@ -236,17 +234,6 @@ export const EditNewsTaskModal = ({
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onClose}>
               Cancel
-            </Button>
-            <Button
-              colorScheme="teal"
-              variant="outline"
-              mr={3}
-              onClick={() => {
-                onClose();
-                navigate(`/newspaper/${task.id}`);
-              }}
-            >
-              📰 View Newspaper
             </Button>
             <Button
               colorScheme="blue"

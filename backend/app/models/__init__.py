@@ -4,7 +4,6 @@ from .source import Source, SourceType
 from .source_news_task import SourceNewsTask
 from .news_item import NewsItem, NewsItemSettings
 from .news_item_news_task import NewsItemNewsTask
-from .newspaper import Newspaper
 from .telegram_bot import TelegramBot
 from .telegram_bot_news_task import TelegramBotNewsTask
 
@@ -17,7 +16,6 @@ __all__ = [
     "NewsItem",
     "NewsItemSettings",
     "NewsItemNewsTask",
-    "Newspaper",
     "TelegramBot",
     "TelegramBotNewsTask",
 ]

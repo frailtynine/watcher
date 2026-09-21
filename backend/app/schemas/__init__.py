@@ -8,7 +8,6 @@ from .news_item_news_task import (
     NewsItemNewsTaskCreate,
     NewsItemNewsTaskUpdate,
 )
-from .newspaper import NewspaperRead
 from .telegram_bot import TelegramBotCreate, TelegramBotRead
 from .telegram_bot_news_task import (
     TelegramBotNewsTaskCreate,
@@ -39,7 +38,6 @@ __all__ = [
     "NewsItemNewsTaskRead",
     "NewsItemNewsTaskCreate",
     "NewsItemNewsTaskUpdate",
-    "NewspaperRead",
     "TelegramBotCreate",
     "TelegramBotRead",
     "TelegramBotNewsTaskCreate",

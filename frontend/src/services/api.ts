@@ -9,7 +9,6 @@ import type {
   SourceNewsTaskAssociation,
   NewsItem,
   NewsItemNewsTask,
-  Newspaper,
   UserSettings,
   UserSettingsUpdate,
   TelegramBot,
@@ -280,24 +279,6 @@ export const api = createApi({
       ],
     }),
 
-    // Newspaper
-    getNewspaper: builder.query<Newspaper, number>({
-      query: (taskId) => `/newspapers/${taskId}`,
-      providesTags: (_result, _error, taskId) => [
-        { type: 'Newspaper', id: taskId },
-      ],
-    }),
-
-    regenerateNewspaper: builder.mutation<Newspaper, number>({
-      query: (taskId) => ({
-        url: `/newspapers/${taskId}/regenerate`,
-        method: 'POST',
-      }),
-      invalidatesTags: (_result, _error, taskId) => [
-        { type: 'Newspaper', id: taskId },
-      ],
-    }),
-
     debugDeduplication: builder.mutation<
       AIDeduplicationDebugResponse,
       AIDeduplicationDebugRequest
@@ -350,8 +331,6 @@ export const {
   useGetNewsItemsQuery,
   useGetNewsItemQuery,
   useGetNewsItemResultsQuery,
-  useGetNewspaperQuery,
-  useRegenerateNewspaperMutation,
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
 } = api;
