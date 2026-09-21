@@ -120,7 +120,10 @@ class TelegramAppsManager:
 
             if not self._is_bot_healthy(running_bot):
                 logger.warning(
-                    "Telegram app unhealthy bot_id=%s app_running=%s updater_running=%s",
+                    (
+                        "Telegram app unhealthy bot_id=%s app_running=%s "
+                        "updater_running=%s"
+                    ),
                     bot_id,
                     running_bot.app.application.running,
                     running_bot.app.application.updater.running

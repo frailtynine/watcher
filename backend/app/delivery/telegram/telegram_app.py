@@ -54,7 +54,10 @@ class TelegramApp:
 
         me = await context.bot.get_me()
         logger.info(
-            "Telegram /start received bot_id=%s bot_username=%s user_id=%s chat_id=%s chat_type=%s",
+            (
+                "Telegram /start received bot_id=%s "
+                "bot_username=%s user_id=%s chat_id=%s chat_type=%s"
+            ),
             me.id,
             me.username,
             update.effective_user.id,
@@ -64,7 +67,10 @@ class TelegramApp:
         bot_data = await self._service.get_bot_instance_by_tg_id(str(me.id))
         if not bot_data:
             logger.warning(
-                "Telegram /start bot not linked bot_id=%s user_id=%s chat_id=%s",
+                (
+                    "Telegram /start bot not linked bot_id=%s "
+                    "user_id=%s chat_id=%s"
+                ),
                 me.id,
                 update.effective_user.id,
                 update.effective_chat.id,
@@ -76,7 +82,10 @@ class TelegramApp:
 
         tasks = await self._service.get_active_tasks_for_bot(bot_data["id"])
         logger.info(
-            "Telegram /start resolved bot_record_id=%s tasks=%s user_id=%s chat_id=%s",
+            (
+                "Telegram /start resolved bot_record_id=%s "
+                "tasks=%s user_id=%s chat_id=%s"
+            ),
             bot_data["id"],
             [task["id"] for task in tasks],
             update.effective_user.id,
@@ -114,7 +123,9 @@ class TelegramApp:
     ) -> None:
         query = update.callback_query
         if not query or not update.effective_chat:
-            logger.info("Telegram task selection ignored: missing query or chat")
+            logger.info(
+                "Telegram task selection ignored: missing query or chat"
+            )
             return
 
         await query.answer()
@@ -132,7 +143,10 @@ class TelegramApp:
         bot_data = await self._service.get_bot_instance_by_tg_id(str(me.id))
         if not bot_data:
             logger.warning(
-                "Telegram task selection bot not linked bot_id=%s user_id=%s chat_id=%s payload=%s",
+                (
+                    "Telegram task selection bot not linked bot_id=%s "
+                    "user_id=%s chat_id=%s payload=%s"
+                ),
                 me.id,
                 update.effective_user.id if update.effective_user else None,
                 update.effective_chat.id,
@@ -142,7 +156,10 @@ class TelegramApp:
             return
 
         logger.info(
-            "Telegram task selection received bot_record_id=%s bot_id=%s user_id=%s chat_id=%s task_id=%s",
+            (
+                "Telegram task selection received bot_record_id=%s "
+                "bot_id=%s user_id=%s chat_id=%s task_id=%s"
+            ),
             bot_data["id"],
             me.id,
             update.effective_user.id if update.effective_user else None,
@@ -157,7 +174,10 @@ class TelegramApp:
 
         if not saved:
             logger.warning(
-                "Telegram task selection failed bot_record_id=%s user_id=%s chat_id=%s task_id=%s",
+                (
+                    "Telegram task selection failed bot_record_id=%s "
+                    "user_id=%s chat_id=%s task_id=%s"
+                ),
                 bot_data["id"],
                 update.effective_user.id if update.effective_user else None,
                 update.effective_chat.id,
@@ -169,7 +189,10 @@ class TelegramApp:
             return
 
         logger.info(
-            "Telegram task selection saved bot_record_id=%s user_id=%s chat_id=%s task_id=%s",
+            (
+                "Telegram task selection saved bot_record_id=%s "
+                "user_id=%s chat_id=%s task_id=%s"
+            ),
             bot_data["id"],
             update.effective_user.id if update.effective_user else None,
             update.effective_chat.id,
