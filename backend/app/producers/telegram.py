@@ -240,6 +240,13 @@ class TelegramProducer(BaseProducer):
                     source_type=SourceType.TELEGRAM,
                     user_id=self.user_id
                 )
+                if not self.sources:
+                    self.logger.info(
+                        "No active SourceType.TELEGRAM sources to process"
+                    )
+                    await asyncio.sleep(self.RECONNECT_DELAY_SECONDS)
+                    continue
+
                 client = await self._get_client_with_entities()
                 if not client:
                     self.logger.warning(
