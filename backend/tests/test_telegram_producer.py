@@ -189,39 +189,43 @@ class TestTelegramProducer:
     @pytest.mark.asyncio
     async def test_run_job_no_sources(self, telegram_producer):
         """Test run_job handles no active sources."""
+        producer_sleep_calls = 0
+
+        async def mock_sleep(_seconds):
+            nonlocal producer_sleep_calls
+            producer_sleep_calls += 1
+            if producer_sleep_calls == 1:
+                await asyncio.sleep(0)
+                return
+            raise asyncio.CancelledError()
+
         with patch.object(
             telegram_producer, 'get_sources', new_callable=AsyncMock
         ) as mock_get_sources, \
              patch.object(
             telegram_producer, '_get_client_with_entities', new_callable=AsyncMock
-        ) as mock_get_client_with_entities:
+        ) as mock_get_client_with_entities, \
+             patch(
+                 'app.producers.telegram.asyncio.sleep',
+                 side_effect=mock_sleep,
+             ):
 
             mock_get_sources.return_value = []
 
-            # Mock client that will be cancelled before run_until_disconnected
-            mock_client = AsyncMock()
-            mock_client.run_until_disconnected = AsyncMock(
-                side_effect=asyncio.CancelledError()
-            )
-            mock_get_client_with_entities.return_value = mock_client
-
-            # Run for a short time then cancel
-            task = asyncio.create_task(telegram_producer.run_job())
-            await asyncio.sleep(0.1)
-            task.cancel()
-
             try:
-                await task
+                await telegram_producer.run_job()
             except asyncio.CancelledError:
                 pass
 
             # Should have called get_sources at least once
             assert mock_get_sources.call_count >= 1
+            mock_get_client_with_entities.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_run_job_reconnects_on_error(self, telegram_producer):
         """Test run_job retries after errors."""
         get_sources_call_count = 0
+        producer_sleep_calls = 0
 
         async def mock_get_sources(*args, **kwargs):
             nonlocal get_sources_call_count
@@ -229,31 +233,32 @@ class TestTelegramProducer:
             # Always return empty so it retries after 60s sleep
             return []
 
+        async def mock_sleep(_seconds):
+            nonlocal producer_sleep_calls
+            producer_sleep_calls += 1
+            if producer_sleep_calls == 1:
+                await asyncio.sleep(0)
+                return
+            raise asyncio.CancelledError()
+
         with patch.object(
             telegram_producer, 'get_sources', new_callable=AsyncMock
         ) as mock_get_sources_patch, \
              patch.object(
             telegram_producer, '_get_client_with_entities', new_callable=AsyncMock
-        ) as mock_get_client_with_entities:
+        ) as mock_get_client_with_entities, \
+             patch(
+                 'app.producers.telegram.asyncio.sleep',
+                 side_effect=mock_sleep,
+             ):
 
             mock_get_sources_patch.side_effect = mock_get_sources
 
-            # Mock client that will be cancelled before run_until_disconnected
-            mock_client = AsyncMock()
-            mock_client.run_until_disconnected = AsyncMock(
-                side_effect=asyncio.CancelledError()
-            )
-            mock_get_client_with_entities.return_value = mock_client
-
-            # Run for a short time
-            task = asyncio.create_task(telegram_producer.run_job())
-            await asyncio.sleep(0.2)
-            task.cancel()
-
             try:
-                await task
+                await telegram_producer.run_job()
             except asyncio.CancelledError:
                 pass
 
             # Should have called get_sources at least once
             assert get_sources_call_count >= 1
+            mock_get_client_with_entities.assert_not_called()

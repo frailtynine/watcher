@@ -1,6 +1,9 @@
 """Manager for multiple user Telegram producer tasks."""
 
 import asyncio
+from dataclasses import dataclass
+import hashlib
+import json
 import logging
 from typing import Dict
 
@@ -16,13 +19,37 @@ from app.producers.telegram import TelegramProducer
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class RunningTelegramProducer:
+    task: asyncio.Task
+    fingerprint: str
+
+
 class TelegramManager:
     """Manages multiple Telegram producer tasks, one per user."""
 
     def __init__(self, check_interval_seconds: int = 300):
         self.check_interval = check_interval_seconds
-        self.user_tasks: Dict[int, asyncio.Task] = {}
+        self.user_tasks: Dict[int, RunningTelegramProducer] = {}
         self.running = False
+
+    @staticmethod
+    def _fingerprint_user_settings(user: User) -> str | None:
+        if not user.settings:
+            return None
+
+        payload = {
+            "telegram_api_id": user.settings.get("telegram_api_id"),
+            "telegram_api_hash": user.settings.get("telegram_api_hash"),
+            "telegram_session_string": user.settings.get(
+                "telegram_session_string"
+            ),
+        }
+        if not all(payload.values()):
+            return None
+
+        serialized = json.dumps(payload, sort_keys=True)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     async def _get_active_users(self) -> list[User]:
         """Get all users with valid Telegram credentials."""
@@ -89,46 +116,74 @@ class TelegramManager:
 
     async def _start_user_task(self, user: User) -> None:
         """Start a new task for a user."""
-        if user.id not in self.user_tasks:
-            task = asyncio.create_task(
-                self._run_user_producer(user),
-                name=f"telegram_user_{user.id}"
-            )
-            self.user_tasks[user.id] = task
-            logger.info(f"Started Telegram task for user {user.id}")
+        if user.id in self.user_tasks:
+            return
+
+        fingerprint = self._fingerprint_user_settings(user)
+        if not fingerprint:
+            return
+
+        task = asyncio.create_task(
+            self._run_user_producer(user),
+            name=f"telegram_user_{user.id}"
+        )
+        self.user_tasks[user.id] = RunningTelegramProducer(
+            task=task,
+            fingerprint=fingerprint,
+        )
+        logger.info(f"Started Telegram task for user {user.id}")
 
     async def _stop_user_task(self, user_id: int) -> None:
         """Stop task for a user."""
-        if user_id in self.user_tasks:
-            task = self.user_tasks[user_id]
-            task.cancel()
-            try:
-                await asyncio.wait_for(task, timeout=10.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
+        running = self.user_tasks.get(user_id)
+        if not running:
+            return
 
-            del self.user_tasks[user_id]
-            logger.info(f"Stopped Telegram task for user {user_id}")
+        running.task.cancel()
+        try:
+            await asyncio.wait_for(running.task, timeout=10.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+
+        del self.user_tasks[user_id]
+        logger.info(f"Stopped Telegram task for user {user_id}")
+
+    async def _restart_user_task(self, user: User) -> None:
+        await self._stop_user_task(user.id)
+        await self._start_user_task(user)
+        logger.info(f"Restarted Telegram task for user {user.id}")
 
     async def _sync_tasks(self) -> None:
         """Synchronize running tasks with active users."""
         try:
             active_users = await self._get_active_users()
-            active_user_ids = {user.id for user in active_users}
+            active_by_id = {user.id: user for user in active_users}
+            active_user_ids = set(active_by_id.keys())
             current_task_ids = set(self.user_tasks.keys())
-
-            # Start new users
-            for user in active_users:
-                if user.id not in current_task_ids:
-                    await self._start_user_task(user)
 
             # Stop removed users
             for user_id in current_task_ids - active_user_ids:
                 await self._stop_user_task(user_id)
 
+            for user_id, user in active_by_id.items():
+                fingerprint = self._fingerprint_user_settings(user)
+                running = self.user_tasks.get(user_id)
+
+                if not running:
+                    await self._start_user_task(user)
+                    continue
+
+                if fingerprint and running.fingerprint != fingerprint:
+                    logger.info(
+                        "Telegram credentials changed for user %s, "
+                        "restarting producer",
+                        user_id,
+                    )
+                    await self._restart_user_task(user)
+
             # Clean up finished tasks
-            for user_id, task in list(self.user_tasks.items()):
-                if task.done():
+            for user_id, running in list(self.user_tasks.items()):
+                if running.task.done():
                     logger.warning(
                         f"Task for user {user_id} finished unexpectedly"
                     )
