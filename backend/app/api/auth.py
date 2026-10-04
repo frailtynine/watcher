@@ -62,8 +62,8 @@ router.include_router(
 
 # Public signup is intentionally disabled for now. To re-enable it, restore
 # `UserCreate` in the schema imports above and add back:
-# `router.include_router(fastapi_users.get_register_router(UserRead, UserCreate),`
-# `prefix="/auth", tags=["auth"])`.
+# `router.include_router(fastapi_users.get_register_router(UserRead,
+# UserCreate), prefix="/auth", tags=["auth"])`.
 
 
 @router.get(
