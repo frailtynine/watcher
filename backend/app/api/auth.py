@@ -6,7 +6,7 @@ from app.crud import telegram_bot_crud
 from app.db import get_async_session
 from app.models import User
 from app.schemas.telegram_bot import TelegramBotRead
-from app.schemas import UserRead, UserCreate, UserUpdate
+from app.schemas import UserRead, UserUpdate
 from app.core.users import get_user_manager
 from app.core.auth import auth_backend
 from app.core.user_settings import merge_settings_for_storage
@@ -60,12 +60,10 @@ router.include_router(
     tags=["auth"],
 )
 
-# User routes (register, read, update, delete)
-router.include_router(
-    fastapi_users.get_register_router(UserRead, UserCreate),
-    prefix="/auth",
-    tags=["auth"],
-)
+# Public signup is intentionally disabled for now. To re-enable it, restore
+# `UserCreate` in the schema imports above and add back:
+# `router.include_router(fastapi_users.get_register_router(UserRead, UserCreate),`
+# `prefix="/auth", tags=["auth"])`.
 
 
 @router.get(
