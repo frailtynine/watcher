@@ -6,55 +6,60 @@ from app.models import User
 pytestmark = pytest.mark.anyio
 
 
-async def test_register_success(client: AsyncClient):
-    """Test user registration with valid data."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "email": "newuser@example.com",
-            "password": "securepassword123",
-        },
-    )
-    assert response.status_code == 201
-    data = response.json()
-    assert data["email"] == "newuser@example.com"
-    assert "id" in data
+# Public signup endpoint tests are intentionally commented out while
+# self-serve registration is disabled. Restore them if /api/auth/register
+# is re-enabled in the future.
+# async def test_register_success(client: AsyncClient):
+#     """Test user registration with valid data."""
+#     response = await client.post(
+#         "/api/auth/register",
+#         json={
+#             "email": "newuser@example.com",
+#             "password": "securepassword123",
+#         },
+#     )
+#     assert response.status_code == 201
+#     data = response.json()
+#     assert data["email"] == "newuser@example.com"
+#     assert "id" in data
 
 
-async def test_register_invalid_email(client: AsyncClient):
-    """Test registration fails with invalid email."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "email": "not-an-email",
-            "password": "securepassword123",
-        },
-    )
-    assert response.status_code == 422
+# async def test_register_invalid_email(client: AsyncClient):
+#     """Test registration fails with invalid email."""
+#     response = await client.post(
+#         "/api/auth/register",
+#         json={
+#             "email": "not-an-email",
+#             "password": "securepassword123",
+#         },
+#     )
+#     assert response.status_code == 422
 
 
-async def test_register_short_password(client: AsyncClient):
-    """Test registration with short password (validation may vary)."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "email": "user@example.com",
-            "password": "123",
-        },
-    )
-    assert response.status_code in [201, 400, 422]
+# async def test_register_short_password(client: AsyncClient):
+#     """Test registration with short password (validation may vary)."""
+#     response = await client.post(
+#         "/api/auth/register",
+#         json={
+#             "email": "user@example.com",
+#             "password": "123",
+#         },
+#     )
+#     assert response.status_code in [201, 400, 422]
 
 
-async def test_register_duplicate_email(client: AsyncClient, test_user: User):
-    """Test registration fails with duplicate email."""
-    response = await client.post(
-        "/api/auth/register",
-        json={
-            "email": test_user.email,
-            "password": "anotherpassword123",
-        },
-    )
-    assert response.status_code == 400
+# async def test_register_duplicate_email(
+#     client: AsyncClient, test_user: User
+# ):
+#     """Test registration fails with duplicate email."""
+#     response = await client.post(
+#         "/api/auth/register",
+#         json={
+#             "email": test_user.email,
+#             "password": "anotherpassword123",
+#         },
+#     )
+#     assert response.status_code == 400
 
 
 async def test_login_success(client: AsyncClient, test_user: User):

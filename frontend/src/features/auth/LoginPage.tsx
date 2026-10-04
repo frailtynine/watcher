@@ -10,10 +10,12 @@ import {
   Heading,
   Text,
   useToast,
-  Link as ChakraLink,
 } from '@chakra-ui/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useLoginMutation } from '@/services/api';
+
+// Signup link intentionally hidden while public signup is disabled.
+// Keep the page implementation available for potential future re-enable.
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -92,13 +94,6 @@ export const LoginPage = () => {
               >
                 Sign In
               </Button>
-
-              <Text textAlign="center" fontSize="sm">
-                Don't have an account?{' '}
-                <ChakraLink as={Link} to="/signup" color="blue.500">
-                  Sign Up
-                </ChakraLink>
-              </Text>
             </VStack>
           </form>
         </VStack>
