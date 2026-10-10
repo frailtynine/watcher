@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     RSS_FETCH_INTERVAL_MINUTES: int = 1
     RSS_FETCH_CONCURRENCY: int = 50
     BACKEND_GEMINI_API_KEY: str
+    OPEN_ROUTER_API_KEY: str = ""
     ENCRYPTION_KEY: str
 
     # Telegram Manager Settings

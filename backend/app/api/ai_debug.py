@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.summary_service import SummaryService
 from app.ai.services import NotificationService
+from app.ai.openrouter_client import OpenRouterClient
 from app.api.auth import current_active_user
 from app.core.config import settings
 from app.core.encryption import decrypt_value
@@ -13,6 +14,8 @@ from app.schemas.ai_debug import (
     AIDeduplicationDebugResponse,
     AISummaryDebugRequest,
     AISummaryDebugResponse,
+    JevDebugRequest,
+    JevDebugResponse,
 )
 
 
@@ -22,6 +25,34 @@ DEFAULT_SUMMARY_PROMPT = (
     "Retell the news article in a neutral way in a short form, "
     "no more than three sentences"
 )
+JEV_DEBUG_CASES = [
+    {
+        "title": "Iran war escalates after overnight strikes on Tehran",
+        "content": (
+            "Iran and Israel exchanged further strikes overnight, prompting "
+            "regional governments to prepare for disruptions to energy "
+            "supplies and commercial flights."
+        ),
+        "expected_relevant": True,
+    },
+    {
+        "title": "Iran opens a new technology park in Isfahan",
+        "content": (
+            "Officials announced a new technology park intended to support "
+            "local startups and university research projects."
+        ),
+        "expected_relevant": False,
+    },
+    {
+        "title": "Expert: war in Iran might end in three days",
+        "content": (
+            "A political commentator said they believe the conflict could end "
+            "within three days, without citing new negotiations or official "
+            "developments."
+        ),
+        "expected_relevant": False,
+    },
+]
 
 
 def _resolve_gemini_api_key(user: User) -> str:
@@ -144,12 +175,10 @@ async def debug_summary(
             detail=f"Failed to fetch article: {exc}",
         ) from exc
 
-    gemini_api_key = _resolve_gemini_api_key(user)
     try:
         summary = await summary_service.summarize_article(
             article=article,
             prompt=prompt_with_language,
-            api_key=gemini_api_key,
         )
     except Exception as exc:
         raise HTTPException(
@@ -163,3 +192,22 @@ async def debug_summary(
         language=language,
         task_id=task.id if task else None,
     )
+
+
+@router.post("/jev", response_model=JevDebugResponse)
+async def debug_jev(
+    payload: JevDebugRequest,
+    user: User = Depends(current_active_user),
+):
+    del user
+    client = OpenRouterClient()
+    cases = []
+    for case in JEV_DEBUG_CASES:
+        is_relevant = await client.is_news_relevant(
+            title=case["title"],
+            content=case["content"],
+            prompt=payload.criteria,
+        )
+        cases.append({**case, "is_relevant": is_relevant})
+
+    return JevDebugResponse(criteria=payload.criteria, cases=cases)

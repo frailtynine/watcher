@@ -22,6 +22,22 @@ export interface UserSettingsUpdate {
   [key: string]: unknown;
 }
 
+export interface JevDebugRequest {
+  criteria: string;
+}
+
+export interface JevDebugCaseResult {
+  title: string;
+  content: string;
+  expected_relevant: boolean;
+  is_relevant: boolean;
+}
+
+export interface JevDebugResponse {
+  criteria: string;
+  cases: JevDebugCaseResult[];
+}
+
 export interface TelegramBotCreate {
   bot_token: string;
 }

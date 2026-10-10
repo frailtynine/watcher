@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -30,3 +30,25 @@ def test_should_fetch_article_for_news_item(url, source_type, expected):
         news_item.source = source
 
     assert service.should_fetch_article_for_news_item(news_item) is expected
+
+
+@pytest.mark.anyio
+async def test_summarize_text_uses_openrouter():
+    service = SummaryService()
+
+    with patch(
+        "app.ai.summary_service.OpenRouterClient.generate_text_response",
+        new_callable=AsyncMock,
+        return_value="Short summary",
+    ) as mock_generate:
+        summary = await service.summarize_text(
+            title="Article title",
+            text="Article body",
+            prompt="Summarize briefly",
+        )
+
+    assert summary == "Short summary"
+    mock_generate.assert_awaited_once_with(
+        "Summarize briefly\n\nArticle Title: Article title"
+        "\nArticle Text: Article body"
+    )

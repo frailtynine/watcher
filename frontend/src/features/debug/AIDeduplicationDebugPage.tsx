@@ -19,10 +19,13 @@ import {
 } from '@chakra-ui/react';
 import {
   useDebugDeduplicationMutation,
+  useDebugJevMutation,
   useDebugSummaryMutation,
   useGetNewsTasksQuery,
 } from '../../services/api';
 
+const DEFAULT_JEV_CRITERIA =
+  'Return news about war in Iran and its consequences, ignore opinions';
 
 const splitHeadlines = (value: string): string[] =>
   value
@@ -55,11 +58,14 @@ export const AIDeduplicationDebugPage = () => {
   const [cutoffHours, setCutoffHours] = useState<24 | 48 | 72 | 168>(24);
   const [summaryLink, setSummaryLink] = useState('');
   const [summaryTaskId, setSummaryTaskId] = useState('');
+  const [jevCriteria, setJevCriteria] = useState(DEFAULT_JEV_CRITERIA);
   const { data: tasks = [], isLoading: isLoadingTasks } = useGetNewsTasksQuery();
   const [debugDeduplication, { data, isLoading }] =
     useDebugDeduplicationMutation();
   const [debugSummary, { data: summaryData, isLoading: isSummaryLoading }] =
     useDebugSummaryMutation();
+  const [debugJev, { data: jevData, isLoading: isJevLoading }] =
+    useDebugJevMutation();
 
   const headlinesCount = useMemo(
     () => splitHeadlines(headlinesText).length,
@@ -76,6 +82,7 @@ export const AIDeduplicationDebugPage = () => {
     );
 
   const canRunSummary = summaryLink.trim().length > 0;
+  const canRunJev = jevCriteria.trim().length > 0;
 
   const handleRun = async () => {
     const taskId = Number(selectedTaskId);
@@ -115,6 +122,20 @@ export const AIDeduplicationDebugPage = () => {
     } catch (error: unknown) {
       toast({
         title: 'Summary test failed',
+        description: extractErrorMessage(error),
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const handleRunJev = async () => {
+    try {
+      await debugJev({ criteria: jevCriteria.trim() }).unwrap();
+    } catch (error: unknown) {
+      toast({
+        title: 'Jev test failed',
         description: extractErrorMessage(error),
         status: 'error',
         duration: 4000,
@@ -263,6 +284,60 @@ export const AIDeduplicationDebugPage = () => {
             </VStack>
           </Box>
         ) : null}
+
+        <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
+          <VStack spacing={4} align="stretch">
+            <Heading size="md">Jev Relevancy Debug</Heading>
+            <Text color="gray.600">
+              Test Jev against one relevant report, one unrelated Iran report,
+              and one opinion-based headline.
+            </Text>
+
+            <FormControl isRequired>
+              <FormLabel>Relevancy Criteria</FormLabel>
+              <Textarea
+                value={jevCriteria}
+                onChange={(e) => setJevCriteria(e.target.value)}
+                rows={3}
+              />
+            </FormControl>
+
+            <Button
+              alignSelf="flex-start"
+              colorScheme="teal"
+              onClick={handleRunJev}
+              isLoading={isJevLoading}
+              isDisabled={!canRunJev}
+            >
+              Run Jev Test
+            </Button>
+
+            {jevData ? (
+              <VStack spacing={3} align="stretch">
+                {jevData.cases.map((testCase) => {
+                  const passed = testCase.is_relevant
+                    === testCase.expected_relevant;
+                  return (
+                    <Box key={testCase.title} borderWidth="1px" p={3}>
+                      <Text fontWeight="semibold">{testCase.title}</Text>
+                      <Text mt={1} fontSize="sm" color="gray.600">
+                        {testCase.content}
+                      </Text>
+                      <Text mt={2} fontSize="sm">
+                        Expected: {testCase.expected_relevant ? 'relevant' : 'not relevant'}
+                        {' | '}Result: {testCase.is_relevant ? 'relevant' : 'not relevant'}
+                        {' '}
+                        <Badge colorScheme={passed ? 'green' : 'red'}>
+                          {passed ? 'PASS' : 'FAIL'}
+                        </Badge>
+                      </Text>
+                    </Box>
+                  );
+                })}
+              </VStack>
+            ) : null}
+          </VStack>
+        </Box>
 
         <Box bg="white" borderRadius="lg" boxShadow="sm" p={6}>
           <VStack spacing={4} align="stretch">

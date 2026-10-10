@@ -18,6 +18,8 @@ import type {
   AIDeduplicationDebugResponse,
   AISummaryDebugRequest,
   AISummaryDebugResponse,
+  JevDebugRequest,
+  JevDebugResponse,
 } from '../types';
 
 export interface LoginRequest {
@@ -299,6 +301,13 @@ export const api = createApi({
         body,
       }),
     }),
+    debugJev: builder.mutation<JevDebugResponse, JevDebugRequest>({
+      query: (body) => ({
+        url: '/debug/ai/jev',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -333,4 +342,5 @@ export const {
   useGetNewsItemResultsQuery,
   useDebugDeduplicationMutation,
   useDebugSummaryMutation,
+  useDebugJevMutation,
 } = api;

@@ -2,7 +2,7 @@ import logging
 
 from newspaper import Article
 
-from app.ai.gemini_client import GeminiClient
+from app.ai.openrouter_client import OpenRouterClient
 from app.models.news_item import NewsItem
 from app.models.source import SourceType
 
@@ -24,9 +24,9 @@ class SummaryService:
         return article
 
     async def summarize_article(
-        self, article: Article, prompt: str, api_key: str
+        self, article: Article, prompt: str
     ) -> str:
-        """Summarize the given news article using Gemini API.
+        """Summarize the given news article using OpenRouter.
 
         Args:
             article: The news article to summarize.
@@ -37,7 +37,6 @@ class SummaryService:
             title=article.title,
             text=article.text,
             prompt=prompt,
-            api_key=api_key,
         )
 
     async def summarize_text(
@@ -45,15 +44,14 @@ class SummaryService:
         title: str | None,
         text: str | None,
         prompt: str,
-        api_key: str,
     ) -> str:
-        """Summarize plain title/text content using Gemini API."""
-        gemini_client = GeminiClient(api_key=api_key)
+        """Summarize plain title/text content using OpenRouter."""
+        openrouter_client = OpenRouterClient()
         summary_prompt = (
             f"{prompt}\n\nArticle Title: {title or ''}"
             f"\nArticle Text: {text or ''}"
         )
-        return await gemini_client.generate_text_response(summary_prompt)
+        return await openrouter_client.generate_text_response(summary_prompt)
 
     def should_fetch_article_for_news_item(self, news_item: NewsItem) -> bool:
         """Use article fetch only for RSS sources with URL."""
@@ -72,7 +70,6 @@ class SummaryService:
         news_item: NewsItem,
         prompt: str,
         language: str,
-        api_key: str,
     ) -> str:
         """Summarize a news item with source-aware strategy and link output."""
         prompt_with_language = f"{prompt}\n\nSummarize in {language} language"
@@ -85,7 +82,6 @@ class SummaryService:
                 summary_text = await self.summarize_article(
                     article=article,
                     prompt=prompt_with_language,
-                    api_key=api_key,
                 )
             except Exception as exc:
                 logger.warning(
@@ -99,7 +95,6 @@ class SummaryService:
                 title=news_item.title,
                 text=news_item.content,
                 prompt=prompt_with_language,
-                api_key=api_key,
             )
 
         return self._add_link_to_summary(summary_text, news_item)
