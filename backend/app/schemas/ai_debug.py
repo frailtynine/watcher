@@ -26,3 +26,19 @@ class AISummaryDebugResponse(BaseModel):
     prompt_used: str
     language: str
     task_id: int | None = None
+
+
+class JevDebugRequest(BaseModel):
+    criteria: str = Field(..., min_length=1, max_length=2000)
+
+
+class JevDebugCaseResult(BaseModel):
+    title: str
+    content: str
+    expected_relevant: bool
+    is_relevant: bool
+
+
+class JevDebugResponse(BaseModel):
+    criteria: str
+    cases: list[JevDebugCaseResult]

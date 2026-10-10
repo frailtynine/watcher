@@ -5,6 +5,36 @@ from httpx import AsyncClient
 pytestmark = pytest.mark.anyio
 
 
+async def test_jev_debug_runs_all_cases(
+    client: AsyncClient,
+    auth_headers: dict,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from app.api import ai_debug
+
+    async def fake_is_news_relevant(self, title, content, prompt):
+        return "strikes" in title.lower()
+
+    monkeypatch.setattr(
+        ai_debug.OpenRouterClient,
+        "is_news_relevant",
+        fake_is_news_relevant,
+    )
+
+    response = await client.post(
+        "/api/debug/ai/jev",
+        headers=auth_headers,
+        json={"criteria": "Return news about war in Iran."},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["cases"]) == 3
+    assert data["cases"][0]["is_relevant"] is True
+    assert data["cases"][1]["is_relevant"] is False
+    assert data["cases"][2]["is_relevant"] is False
+
+
 async def test_summary_debug_uses_defaults_when_task_not_selected(
     client: AsyncClient,
     auth_headers: dict,
@@ -12,12 +42,9 @@ async def test_summary_debug_uses_defaults_when_task_not_selected(
 ):
     from app.api import ai_debug
 
-    async def fake_summarize_article(self, article, prompt: str, api_key: str):
-        return f"summary::{prompt}::{api_key}"
+    async def fake_summarize_article(self, article, prompt: str):
+        return f"summary::{prompt}"
 
-    monkeypatch.setattr(
-        ai_debug, "_resolve_gemini_api_key", lambda _u: "test-key"
-    )
     monkeypatch.setattr(
         ai_debug.SummaryService,
         "get_article",
@@ -46,7 +73,7 @@ async def test_summary_debug_uses_defaults_when_task_not_selected(
         == "Retell the news article in a neutral way in a short form, "
         "no more than three sentences\n\nSummarize in en language"
     )
-    assert "test-key" in data["summary"]
+    assert data["summary"].startswith("summary::")
 
 
 async def test_summary_debug_uses_task_prompt_and_language(
@@ -80,12 +107,9 @@ async def test_summary_debug_uses_task_prompt_and_language(
         await session.refresh(task)
         task_id = task.id
 
-    async def fake_summarize_article(self, article, prompt: str, api_key: str):
+    async def fake_summarize_article(self, article, prompt: str):
         return prompt
 
-    monkeypatch.setattr(
-        ai_debug, "_resolve_gemini_api_key", lambda _u: "test-key"
-    )
     monkeypatch.setattr(
         ai_debug.SummaryService,
         "get_article",

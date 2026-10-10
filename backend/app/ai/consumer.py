@@ -259,7 +259,6 @@ class AIConsumer:
 
                 if (
                     summary_enabled
-                    and gemini_api_key
                     and summary_service is not None
                 ):
                     try:
@@ -268,7 +267,6 @@ class AIConsumer:
                                 news_item=matched_news_item,
                                 prompt=summary_prompt,
                                 language=summary_lang,
-                                api_key=gemini_api_key,
                             )
                         )
 
@@ -287,14 +285,6 @@ class AIConsumer:
                             e,
                             exc_info=True,
                         )
-                elif summary_enabled and not gemini_api_key:
-                    self.logger.warning(
-                        "Summary is enabled but Gemini key is missing for %s "
-                        "task_id=%s. Falling back to URL/title delivery.",
-                        self._format_user_context(user),
-                        task.id,
-                    )
-
                 message_by_news_item_id[matched_news_item.id] = message
 
             for bot_id in bot_ids:
