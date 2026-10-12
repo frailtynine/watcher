@@ -96,6 +96,50 @@ class OpenRouterClient(BaseAIClient):
                 },
             },
         }
+        probability = await self._get_jev_probability(payload, "relevant")
+        return probability >= threshold
+
+    async def is_duplicate_news_item(
+        self,
+        title: str,
+        content: str,
+    recent_headlines: list[str],
+    threshold: float = 0.7,
+) -> bool:
+        """Return whether Jev considers an item the same event as a headline.
+
+        The comparison is against the supplied recent headlines.
+        """
+        if not recent_headlines:
+            return False
+        if not 0 <= threshold <= 1:
+            raise ValueError("threshold must be between 0 and 1.")
+
+        payload = {
+            "model": self.JEV_MODEL_NAME,
+            "state": {
+                "candidate": {"title": title, "content": content},
+                "recent_relevant_headlines": recent_headlines,
+            },
+            "questions": {
+                "duplicate": {
+                    "type": "noul",
+                    "instructions": (
+                        "The candidate reports the same event as at least one "
+                        "headline in `recent_relevant_headlines`, rather than "
+                        "a materially new event. Compare headlines one by one."
+                    ),
+                },
+            },
+        }
+        probability = await self._get_jev_probability(payload, "duplicate")
+        return probability >= threshold
+
+    async def _get_jev_probability(
+        self,
+        payload: dict[str, Any],
+        answer_key: str,
+    ) -> float:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -110,7 +154,7 @@ class OpenRouterClient(BaseAIClient):
             response.raise_for_status()
 
         try:
-            probability = response.json()["answers"]["relevant"]["noul"]
+            probability = response.json()["answers"][answer_key]["noul"]
         except (KeyError, TypeError) as exc:
             raise ValueError(
                 "Jev returned an invalid decision response."
@@ -120,7 +164,7 @@ class OpenRouterClient(BaseAIClient):
             0 <= probability <= 1
         ):
             raise ValueError("Jev returned an invalid relevance probability.")
-        return probability >= threshold
+        return probability
 
     async def process_news(
         self,
