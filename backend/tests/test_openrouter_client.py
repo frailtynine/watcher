@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.ai.openrouter_client import OpenRouterClient
+from app.ai.base import ProcessingResult
 
 
 pytestmark = pytest.mark.anyio
@@ -93,3 +94,29 @@ async def test_is_news_relevant(openrouter_client):
 
     assert relevant is True
     http_client.post.assert_awaited_once()
+
+
+async def test_process_news_uses_jev(openrouter_client, monkeypatch):
+    async def fake_is_news_relevant(title, content, prompt):
+        assert title == "Iran war update"
+        assert content == "Regional effects"
+        assert prompt == "Return Iran war news"
+        return True
+
+    monkeypatch.setattr(
+        openrouter_client,
+        "is_news_relevant",
+        fake_is_news_relevant,
+    )
+
+    result = await openrouter_client.process_news(
+        title="Iran war update",
+        content="Regional effects",
+        prompt="Return Iran war news",
+    )
+
+    assert result == ProcessingResult(
+        result=True,
+        thinking="Jev relevance classification",
+        tokens_used=0,
+    )

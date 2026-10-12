@@ -14,7 +14,7 @@
 ## Current execution flow
 
 1. Load the user by ID.
-2. Resolve an API key from `user.settings` or fall back to `settings.BACKEND_GEMINI_API_KEY`.
+2. Resolve the user's Gemini API key from `user.settings` for relevance filtering.
 3. Load active tasks for that user.
 4. For each task, query recent unprocessed news linked through [[db/models/source-news-task]].
 5. Process items concurrently with `GeminiClient.process_news()`.

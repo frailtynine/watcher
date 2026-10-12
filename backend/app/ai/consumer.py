@@ -2,19 +2,15 @@
 
 import logging
 from datetime import timedelta
-from typing import Optional
 import asyncio
 
 from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gemini_client import GeminiClient
 from app.ai.summary_service import SummaryService
-from app.ai.base import ProcessingResult
-from app.ai.services import NotificationService
-from app.core.config import settings
-from app.core.encryption import decrypt_value
+from app.ai.base import BaseAIClient, ProcessingResult
+from app.ai.openrouter_client import OpenRouterClient
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
@@ -39,7 +35,6 @@ class AIConsumer:
     def __init__(self):
         """Initialize AI consumer."""
         self.logger = logger.getChild(self.__class__.__name__)
-        self.notification_service = NotificationService()
 
     @staticmethod
     def _format_user_context(user: User) -> str:
@@ -66,21 +61,7 @@ class AIConsumer:
             tasks = await self._get_active_tasks(db, user.id)
             if not tasks:
                 return {"processed": 0, "errors": 0, "active_tasks": 0}
-            api_key = self._get_user_api_key(user)
-            if not api_key:
-                self.logger.warning(
-                    "Skipping AI processing: no Gemini API key configured "
-                    "for %s active_tasks=%s",
-                    self._format_user_context(user),
-                    len(tasks),
-                )
-                return {
-                    "processed": 0,
-                    "errors": 0,
-                    "active_tasks": len(tasks),
-                }
-
-            client = GeminiClient(api_key=api_key)
+            client = OpenRouterClient()
 
             total_processed = 0
             total_queued = 0
@@ -94,7 +75,6 @@ class AIConsumer:
                     client,
                     task,
                     user,
-                    api_key,
                 )
                 total_queued += stats["queued"]
                 total_processed += stats["processed"]
@@ -127,16 +107,15 @@ class AIConsumer:
     async def _process_task_news(
         self,
         db: AsyncSession,
-        client: GeminiClient,
+        client: BaseAIClient,
         task: NewsTask,
         user: User,
-        gemini_api_key: str | None = None,
     ) -> dict:
         """Process unprocessed news items for a specific task.
 
         Args:
             db: Database session
-            client: Gemini client
+            client: Relevance classification client
             task: NewsTask instance
             user: User who owns the task
 
@@ -198,50 +177,7 @@ class AIConsumer:
             if isinstance(result, ProcessingResult) and result.result
         ]
 
-        dedupe_api_key = gemini_api_key
-        deliverable_news_items: list[NewsItem] = []
-        for matched_news_item in matched_news_items:
-            if not dedupe_api_key:
-                deliverable_news_items.append(matched_news_item)
-                continue
-            try:
-                (
-                    is_new,
-                    thinking,
-                ) = await self.notification_service.is_new_relevant_news_item(
-                    gemini_api_key=dedupe_api_key,
-                    task_id=task.id,
-                    news_item_id=matched_news_item.id,
-                    candidate_title=matched_news_item.title,
-                    candidate_content=matched_news_item.content,
-                    db=db,
-                )
-            except Exception as e:
-                self.logger.error(
-                    "Deduplication failed for %s task_id=%s "
-                    "news_item_id=%s: %s",
-                    self._format_user_context(user),
-                    task.id,
-                    matched_news_item.id,
-                    e,
-                    exc_info=True,
-                )
-                is_new = True
-                thinking = "deduplication_error"
-
-            if is_new:
-                deliverable_news_items.append(matched_news_item)
-            else:
-                self.logger.info(
-                    "Skipping duplicate relevant news for %s task_id=%s "
-                    "news_item_id=%s reasoning=%r",
-                    self._format_user_context(user),
-                    task.id,
-                    matched_news_item.id,
-                    thinking,
-                )
-
-        if deliverable_news_items:
+        if matched_news_items:
             delivery_settings = self._get_task_telegram_delivery_settings(task)
             summary_enabled = delivery_settings["summary"]
             summary_prompt = delivery_settings["prompt"]
@@ -251,7 +187,7 @@ class AIConsumer:
             bot_ids = await self._get_task_bot_ids(db, task.id)
             message_by_news_item_id: dict[int, str] = {}
 
-            for matched_news_item in deliverable_news_items:
+            for matched_news_item in matched_news_items:
                 fallback_message = (
                     matched_news_item.url or matched_news_item.title
                 )
@@ -288,7 +224,7 @@ class AIConsumer:
                 message_by_news_item_id[matched_news_item.id] = message
 
             for bot_id in bot_ids:
-                for matched_news_item in deliverable_news_items:
+                for matched_news_item in matched_news_items:
                     news_url = message_by_news_item_id[matched_news_item.id]
                     try:
                         await self._send_message(
@@ -351,7 +287,7 @@ class AIConsumer:
 
     async def _process_task_news_concurrent(
         self,
-        client: GeminiClient,
+        client: BaseAIClient,
         news_item: NewsItem,
         task: NewsTask,
         user: User,
@@ -512,27 +448,6 @@ class AIConsumer:
                 ai_response=ai_response,
             )
             db.add(record)
-
-    def _get_user_api_key(self, user: User) -> Optional[str]:
-        """Extract Gemini API key from user settings.
-
-        Args:
-            user: User instance
-
-        Returns:
-            API key or None if not configured
-        """
-        if user.settings is None:
-            return None
-
-        encrypted_api_key = user.settings.get("gemini_api_key")
-        if not encrypted_api_key:
-            return None
-
-        return decrypt_value(
-            encrypted_api_key,
-            settings.ENCRYPTION_KEY,
-        )
 
     def _get_task_telegram_delivery_settings(self, task: NewsTask) -> dict:
         task_settings = (
