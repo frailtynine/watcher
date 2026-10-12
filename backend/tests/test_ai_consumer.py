@@ -364,6 +364,7 @@ async def test_process_task_news_success(
             result=True, thinking="Test thinking", tokens_used=200
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
@@ -456,6 +457,7 @@ async def test_process_task_news_sends_message_for_each_bot_on_match(
             tokens_used=50,
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
@@ -475,6 +477,60 @@ async def test_process_task_news_sends_message_for_each_bot_on_match(
         )
 
         assert consumer._send_message.await_count == 2
+
+
+@pytest.mark.anyio
+async def test_process_task_news_does_not_deliver_jev_duplicates(
+    db_session_maker,
+    test_news_task,
+    test_source,
+):
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        session.add(
+            NewsItem(
+                source_id=test_source.id,
+                title="Duplicate news",
+                content="Duplicate content",
+                url="https://example.com/duplicate",
+                published_at=datetime.utcnow() - timedelta(hours=1),
+            )
+        )
+        await session.commit()
+
+    mock_client = MagicMock()
+    mock_client.process_news = AsyncMock(
+        return_value=ProcessingResult(
+            result=True,
+            thinking="Matches",
+            tokens_used=0,
+        )
+    )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=True)
+
+    async with db_session_maker() as session:
+        consumer = AIConsumer()
+        consumer._get_task_bot_ids = AsyncMock(return_value=[10])
+        consumer._send_message = AsyncMock()
+        task_in_session = await session.merge(test_news_task)
+        user = MagicMock(spec=User)
+        user.id = 1
+        user.email = "test@example.com"
+
+        stats = await consumer._process_task_news(
+            session,
+            mock_client,
+            task_in_session,
+            user,
+        )
+
+        assert stats["matched"] == 1
+        consumer._send_message.assert_not_awaited()
 
 
 @pytest.mark.anyio
@@ -509,6 +565,7 @@ async def test_process_task_news_uses_title_when_news_url_missing(
             tokens_used=50,
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     async with db_session_maker() as session:
         consumer = AIConsumer()
@@ -584,6 +641,7 @@ async def test_process_task_news_uses_summary_service_when_enabled(
             tokens_used=50,
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     summarize_news_item_mock = AsyncMock(
         return_value="SUMMARY TEXT\n\nhttps://example.com/matched-summary"
@@ -670,6 +728,7 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
             tokens_used=50,
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     from app.ai import consumer as consumer_module
 
@@ -753,6 +812,7 @@ async def test_process_task_news_falls_back_to_url_when_summary_fails(
             tokens_used=50,
         )
     )
+    mock_client.is_duplicate_news_item = AsyncMock(return_value=False)
 
     from app.ai import consumer as consumer_module
 

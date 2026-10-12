@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.summary_service import SummaryService
 from app.ai.base import BaseAIClient, ProcessingResult
 from app.ai.openrouter_client import OpenRouterClient
+from app.ai.services import NotificationService
 from app.models.news_item import NewsItem
 from app.models.news_task import NewsTask
 from app.models.news_item_news_task import NewsItemNewsTask
@@ -35,6 +36,7 @@ class AIConsumer:
     def __init__(self):
         """Initialize AI consumer."""
         self.logger = logger.getChild(self.__class__.__name__)
+        self.notification_service = NotificationService()
 
     @staticmethod
     def _format_user_context(user: User) -> str:
@@ -177,7 +179,33 @@ class AIConsumer:
             if isinstance(result, ProcessingResult) and result.result
         ]
 
-        if matched_news_items:
+        deliverable_news_items: list[NewsItem] = []
+        for matched_news_item in matched_news_items:
+            recent_headlines = (
+                await self.notification_service.get_recent_relevant_headlines(
+                    db=db,
+                    task_id=task.id,
+                    hours=24,
+                    exclude_news_item_id=matched_news_item.id,
+                )
+            )
+            is_duplicate = await client.is_duplicate_news_item(
+                title=matched_news_item.title,
+                content=matched_news_item.content,
+                recent_headlines=recent_headlines,
+            )
+            if is_duplicate:
+                self.logger.info(
+                    "Skipping duplicate relevant news for %s task_id=%s "
+                    "news_item_id=%s",
+                    self._format_user_context(user),
+                    task.id,
+                    matched_news_item.id,
+                )
+                continue
+            deliverable_news_items.append(matched_news_item)
+
+        if deliverable_news_items:
             delivery_settings = self._get_task_telegram_delivery_settings(task)
             summary_enabled = delivery_settings["summary"]
             summary_prompt = delivery_settings["prompt"]
@@ -187,7 +215,7 @@ class AIConsumer:
             bot_ids = await self._get_task_bot_ids(db, task.id)
             message_by_news_item_id: dict[int, str] = {}
 
-            for matched_news_item in matched_news_items:
+            for matched_news_item in deliverable_news_items:
                 fallback_message = (
                     matched_news_item.url or matched_news_item.title
                 )
@@ -224,7 +252,7 @@ class AIConsumer:
                 message_by_news_item_id[matched_news_item.id] = message
 
             for bot_id in bot_ids:
-                for matched_news_item in matched_news_items:
+                for matched_news_item in deliverable_news_items:
                     news_url = message_by_news_item_id[matched_news_item.id]
                     try:
                         await self._send_message(

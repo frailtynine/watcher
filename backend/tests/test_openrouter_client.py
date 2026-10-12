@@ -120,3 +120,26 @@ async def test_process_news_uses_jev(openrouter_client, monkeypatch):
         thinking="Jev relevance classification",
         tokens_used=0,
     )
+
+
+async def test_is_duplicate_news_item(openrouter_client):
+    response = SimpleNamespace(
+        json=lambda: {"answers": {"duplicate": {"noul": 0.8}}},
+        raise_for_status=lambda: None,
+    )
+    http_client = AsyncMock()
+    http_client.post.return_value = response
+    context_manager = AsyncMock()
+    context_manager.__aenter__.return_value = http_client
+
+    with patch(
+        "app.ai.openrouter_client.httpx.AsyncClient",
+        return_value=context_manager,
+    ):
+        is_duplicate = await openrouter_client.is_duplicate_news_item(
+            title="Iran war escalates",
+            content="Further strikes were reported.",
+            recent_headlines=["Iran war escalates after overnight strikes"],
+        )
+
+    assert is_duplicate is True
