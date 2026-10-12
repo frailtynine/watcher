@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from openrouter import OpenRouter
 
-from app.ai.base import BaseAIClient
+from app.ai.base import BaseAIClient, ProcessingResult
 from app.core.config import settings
 
 
@@ -121,6 +121,20 @@ class OpenRouterClient(BaseAIClient):
         ):
             raise ValueError("Jev returned an invalid relevance probability.")
         return probability >= threshold
+
+    async def process_news(
+        self,
+        title: str,
+        content: str,
+        prompt: str,
+    ) -> ProcessingResult:
+        """Classify a news item with Jev using BaseAIClient's result shape."""
+        is_relevant = await self.is_news_relevant(title, content, prompt)
+        return ProcessingResult(
+            result=is_relevant,
+            thinking="Jev relevance classification",
+            tokens_used=0,
+        )
 
     async def _generate(
         self,

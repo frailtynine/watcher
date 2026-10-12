@@ -67,29 +67,6 @@ async def test_news_item(db_session_maker, test_source):
 
 
 @pytest.mark.anyio
-async def test_get_user_api_key(ai_consumer, mock_user):
-    """Test extracting API key from user settings."""
-    api_key = ai_consumer._get_user_api_key(mock_user)
-    assert api_key == "test-api-key"
-
-
-@pytest.mark.anyio
-async def test_get_user_api_key_missing(ai_consumer, mock_user_no_key):
-    """Test handling missing API key."""
-    api_key = ai_consumer._get_user_api_key(mock_user_no_key)
-    assert api_key is None
-
-
-@pytest.mark.anyio
-async def test_get_user_api_key_no_settings(ai_consumer):
-    """Test handling user with no settings."""
-    user = MagicMock(spec=User)
-    user.settings = None
-    api_key = ai_consumer._get_user_api_key(user)
-    assert api_key is None
-
-
-@pytest.mark.anyio
 async def test_get_active_tasks(
     ai_consumer, db_session_maker, test_user, test_news_task
 ):
@@ -315,17 +292,6 @@ async def test_save_result_updates_existing_record(
         assert record.processed is True
         assert record.result is False
         assert record.ai_response["thinking"] == "Does not match"
-
-
-@pytest.mark.anyio
-async def test_process_user_news_no_api_key(
-    ai_consumer, db_session_maker, mock_user_no_key
-):
-    """Test processing handles missing API key."""
-    result = await ai_consumer.process_user_news(mock_user_no_key.id)
-
-    assert result["processed"] == 0
-    assert result["errors"] == 0
 
 
 @pytest.mark.anyio
@@ -635,9 +601,6 @@ async def test_process_task_news_uses_summary_service_when_enabled(
         consumer = AIConsumer()
         consumer._get_task_bot_ids = AsyncMock(return_value=[10])
         consumer._send_message = AsyncMock()
-        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
-            return_value=(True, "new")
-        )
 
         task_in_session = await session.merge(test_news_task)
         task_in_session.settings = {
@@ -659,7 +622,6 @@ async def test_process_task_news_uses_summary_service_when_enabled(
             mock_client,
             task_in_session,
             user,
-            gemini_api_key="test-api-key",
         )
 
         summarize_news_item_mock.assert_awaited_once()
@@ -724,9 +686,6 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
         consumer = AIConsumer()
         consumer._get_task_bot_ids = AsyncMock(return_value=[10])
         consumer._send_message = AsyncMock()
-        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
-            return_value=(True, "new")
-        )
 
         task_in_session = await session.merge(test_news_task)
         task_in_session.settings = {
@@ -748,7 +707,6 @@ async def test_process_task_news_uses_rss_content_when_article_download_fails(
             mock_client,
             task_in_session,
             user,
-            gemini_api_key="test-api-key",
         )
 
         summarize_news_item_mock.assert_awaited_once()
@@ -808,9 +766,6 @@ async def test_process_task_news_falls_back_to_url_when_summary_fails(
         consumer = AIConsumer()
         consumer._get_task_bot_ids = AsyncMock(return_value=[10])
         consumer._send_message = AsyncMock()
-        consumer.notification_service.is_new_relevant_news_item = AsyncMock(
-            return_value=(True, "new")
-        )
 
         task_in_session = await session.merge(test_news_task)
         task_in_session.settings = {
@@ -832,7 +787,6 @@ async def test_process_task_news_falls_back_to_url_when_summary_fails(
             mock_client,
             task_in_session,
             user,
-            gemini_api_key="test-api-key",
         )
 
         consumer._send_message.assert_awaited_once_with(

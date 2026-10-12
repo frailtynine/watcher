@@ -274,7 +274,7 @@ All environment variables are configured in a single `.env` file in the root dir
 ### Backend
 - `SECRET_KEY` - Secret key for JWT tokens (min 32 characters)
 - `ENCRYPTION_KEY` - Fernet key used to encrypt user credentials in `user.settings`
-- `BACKEND_GEMINI_API_KEY` - Backend-level Gemini key (used for newspaper generation)
+- `OPEN_ROUTER_API_KEY` - Server key for OpenRouter-powered Telegram summaries
 - `BACKEND_CORS_ORIGINS` - Allowed CORS origins (JSON array)
 - `ENVIRONMENT` - Environment (development/production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration time (default: 1440 = 24 hours)
