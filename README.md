@@ -1,6 +1,23 @@
 # NewsWatcher
 
-A full-stack news monitoring app with authentication, automated ingestion, AI filtering, and Telegram delivery, built with FastAPI and React.
+A full-stack news monitoring app with automated ingestion, AI filtering, and
+Telegram delivery, built with FastAPI and React.
+
+## AI Filtering
+
+NewsWatcher uses OpenRouter's Jev Decisions model for two narrow, low-cost
+checks on each news item:
+
+- Does the item match a task's relevancy criteria?
+- Is a relevant item a duplicate of a recently delivered event?
+
+Jev returns a probability for a factual proposition rather than generating a
+free-form answer. The application applies deterministic thresholds to those
+probabilities, which keeps relevance and duplicate decisions predictable while
+using a much smaller request than a general text-generation workflow.
+
+OpenRouter also generates optional short Telegram retellings and logs the
+actual USD charge returned for each generation request.
 
 ## Tech Stack
 
@@ -12,7 +29,7 @@ A full-stack news monitoring app with authentication, automated ingestion, AI fi
 - **SQLAlchemy** - ORM
 - **uv** - Package manager
 - **APScheduler** - Background jobs
-- **Google Gemini** - AI filtering and newspaper updates
+- **OpenRouter + Jev** - Relevance and duplicate decisions, plus summaries
 - **Telethon + python-telegram-bot** - Telegram ingestion and bot delivery
 
 ### Frontend
@@ -97,7 +114,7 @@ newswatcher/
 │   │   ├── schemas/          # Pydantic schemas
 │   │   ├── api/              # API routes
 │   │   ├── ai/               # AI consumer and providers
-│   │   ├── delivery/         # Newspaper + Telegram delivery runtime
+│   │   ├── delivery/         # Telegram delivery runtime
 │   │   ├── producers/        # RSS/Telegram source producers
 │   │   ├── core/             # Core configuration
 │   │   └── db/               # Database setup
@@ -224,7 +241,6 @@ make logs
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register new user
 - `POST /api/auth/jwt/login` - Login (returns JWT token)
 - `POST /api/auth/jwt/logout` - Logout
 - `GET /api/users/me` - Get current user with masked/derived settings
@@ -235,7 +251,6 @@ Sensitive settings are never returned as plaintext. Example response shape:
 ```json
 {
   "settings": {
-    "gemini_api_key": true,
     "telegram_bots": [
       {
         "id": 1,
@@ -253,7 +268,6 @@ Sensitive settings are never returned as plaintext. Example response shape:
 - `/api/news-tasks` - CRUD for filtering tasks
 - `/api/associations` - Source-to-task associations
 - `/api/news-items` - News items and per-task processing results
-- `/api/newspapers` - Read/regenerate task newspaper
 - `/api/telegram-bots` - Connect/disconnect Telegram bots
 - `/api/news-tasks/{task_id}/telegram-bots/*` - Attach bots to tasks
 
@@ -274,7 +288,7 @@ All environment variables are configured in a single `.env` file in the root dir
 ### Backend
 - `SECRET_KEY` - Secret key for JWT tokens (min 32 characters)
 - `ENCRYPTION_KEY` - Fernet key used to encrypt user credentials in `user.settings`
-- `OPEN_ROUTER_API_KEY` - Server key for OpenRouter-powered Telegram summaries
+- `OPEN_ROUTER_API_KEY` - Server key for Jev decisions and Telegram summaries
 - `BACKEND_CORS_ORIGINS` - Allowed CORS origins (JSON array)
 - `ENVIRONMENT` - Environment (development/production)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` - Token expiration time (default: 1440 = 24 hours)
@@ -298,6 +312,13 @@ Production note:
 - Sensitive user settings are encrypted before they are stored in the database
 - `/api/users/me` never returns secret values; it returns presence flags and derived bot metadata
 - SQL injection protection via SQLAlchemy ORM
+
+## Future Features
+
+- Choose the OpenRouter model used for Telegram retellings
+- AI-generated test cases for task criteria
+- Post matched news directly to a Telegram channel
+- Add Slack, WhatsApp, and Discord delivery integrations
 
 ## CI/CD
 
