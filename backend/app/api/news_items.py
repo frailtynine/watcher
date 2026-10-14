@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from app.db import get_async_session
-from app.crud import news_item_crud, source_crud, news_item_news_task_crud
+from app.crud import news_item_crud, source_crud
 from app.schemas import (
     NewsItemCreate,
     NewsItemRead,
@@ -9,7 +11,7 @@ from app.schemas import (
     NewsItemNewsTaskRead,
 )
 from app.api.auth import current_active_user
-from app.models import User
+from app.models import NewsItem, NewsItemNewsTask, NewsTask, User
 
 router = APIRouter()
 
@@ -43,27 +45,33 @@ async def list_news_items(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user)
 ):
-    """List news items with optional filters, sorted by newest first"""
-    # Build filter params
-    filters = {}
+    """List items processed by the current user's tasks."""
+    filters = [
+        NewsItem.task_results.any(
+            NewsItemNewsTask.news_task.has(NewsTask.user_id == user.id)
+        )
+    ]
     if source_id is not None:
-        # Verify source ownership
-        source = await source_crud.get(db, id=source_id, user_id=user.id)
-        if not source:
-            raise HTTPException(status_code=404, detail="Source not found")
-        filters["source_id"] = source_id
+        filters.append(NewsItem.source_id == source_id)
 
-    items = await news_item_crud.get_multi(
-        db,
-        offset=skip,
-        limit=limit,
-        schema_to_select=NewsItemRead,
-        return_as_model=True,
-        sort_columns=["id"],
-        sort_orders=["desc"],
-        **filters
+    statement = (
+        select(NewsItem)
+        .where(*filters)
+        .options(
+            selectinload(
+                NewsItem.task_results.and_(
+                    NewsItemNewsTask.news_task.has(
+                        NewsTask.user_id == user.id
+                    )
+                )
+            )
+        )
+        .order_by(NewsItem.id.desc())
+        .offset(skip)
+        .limit(limit)
     )
-    return items["data"]
+    result = await db.execute(statement)
+    return list(result.scalars())
 
 
 @router.get("/{item_id}", response_model=NewsItemRead)
@@ -148,21 +156,16 @@ async def get_news_item_processing_results(
 
     Returns which tasks processed it and their results.
     """
-    # Verify news item exists and user owns the source
-    item = await news_item_crud.get(db, id=item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="News item not found")
-
-    # Verify user owns the source
-    source = await source_crud.get(db, id=item["source_id"], user_id=user.id)
-    if not source:
-        raise HTTPException(status_code=404, detail="News item not found")
-
-    # Get all processing results for this item
-    results = await news_item_news_task_crud.get_multi(
-        db,
-        news_item_id=item_id,
-        schema_to_select=NewsItemNewsTaskRead,
-        return_as_model=True
+    statement = (
+        select(NewsItemNewsTask)
+        .join(NewsTask)
+        .where(
+            NewsItemNewsTask.news_item_id == item_id,
+            NewsTask.user_id == user.id,
+        )
     )
-    return results["data"]
+    result = await db.execute(statement)
+    results = list(result.scalars())
+    if not results:
+        raise HTTPException(status_code=404, detail="News item not found")
+    return results

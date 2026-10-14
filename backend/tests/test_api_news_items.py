@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, timezone
 from httpx import AsyncClient
 
-from app.models import Source, NewsItem
+from app.models import NewsItem, NewsItemNewsTask, NewsTask, Source, User
 
 pytestmark = pytest.mark.anyio
 
@@ -40,13 +40,79 @@ async def test_list_news_items(
     client: AsyncClient,
     auth_headers: dict,
     test_news_item: NewsItem,
+    test_news_task: NewsTask,
+    db_session_maker,
 ):
-    """Test listing news items."""
+    """List includes the current user's processing results."""
+    async with db_session_maker() as session:
+        session.add(
+            NewsItemNewsTask(
+                news_item_id=test_news_item.id,
+                news_task_id=test_news_task.id,
+                processed=True,
+                result=True,
+                ai_response={"thinking": "Relevant"},
+            )
+        )
+        await session.commit()
+
     response = await client.get("/api/news-items/", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
     assert data[0]["title"] == "Test News Title"
+    assert len(data[0]["processing_results"]) == 1
+    assert data[0]["processing_results"][0]["news_task_id"] == test_news_task.id
+
+
+async def test_list_news_items_excludes_other_users_results(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_item: NewsItem,
+    test_news_task: NewsTask,
+    db_session_maker,
+):
+    """Only results belonging to the authenticated user's tasks are returned."""
+    async with db_session_maker() as session:
+        other_user = User(
+            email="other@example.com",
+            hashed_password="not-used-in-this-test",
+            is_active=True,
+            is_superuser=False,
+            is_verified=False,
+        )
+        session.add(other_user)
+        await session.flush()
+        other_task = NewsTask(
+            user_id=other_user.id,
+            name="Other User Task",
+            prompt="Summarize news",
+            active=True,
+        )
+        session.add(other_task)
+        await session.flush()
+        session.add_all(
+            [
+                NewsItemNewsTask(
+                    news_item_id=test_news_item.id,
+                    news_task_id=test_news_task.id,
+                ),
+                NewsItemNewsTask(
+                    news_item_id=test_news_item.id,
+                    news_task_id=other_task.id,
+                ),
+            ]
+        )
+        await session.commit()
+
+    response = await client.get("/api/news-items/", headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert [result["news_task_id"] for result in data[0]["processing_results"]] == [
+        test_news_task.id
+    ]
 
 
 async def test_get_news_item(
@@ -199,8 +265,19 @@ async def test_list_news_items_with_filters(
     client: AsyncClient,
     auth_headers: dict,
     test_news_item: NewsItem,
+    test_news_task: NewsTask,
+    db_session_maker,
 ):
     """Test listing news items with filters."""
+    async with db_session_maker() as session:
+        session.add(
+            NewsItemNewsTask(
+                news_item_id=test_news_item.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        await session.commit()
+
     response = await client.get(
         f"/api/news-items/?source_id={test_news_item.source_id}",
         headers=auth_headers,
@@ -210,16 +287,17 @@ async def test_list_news_items_with_filters(
     assert len(data) >= 1
 
 
-async def test_list_news_items_invalid_source_filter(
+async def test_list_news_items_unmatched_source_filter(
     client: AsyncClient,
     auth_headers: dict,
 ):
-    """Test listing with invalid source_id filter returns 404."""
+    """Test listing with an unmatched source filter returns no items."""
     response = await client.get(
         "/api/news-items/?source_id=99999",
         headers=auth_headers,
     )
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 async def test_update_news_item(

@@ -1,6 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Dict, Any
+from app.schemas.news_item_news_task import NewsItemNewsTaskRead
 
 
 class NewsItemBase(BaseModel):
@@ -33,5 +34,9 @@ class NewsItemRead(NewsItemBase):
     fetched_at: datetime
     created_at: datetime
     updated_at: datetime
+    processing_results: list[NewsItemNewsTaskRead] = Field(
+        default_factory=list,
+        validation_alias="task_results",
+    )
 
     model_config = ConfigDict(from_attributes=True)

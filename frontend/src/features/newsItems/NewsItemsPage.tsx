@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Heading,
@@ -33,7 +33,6 @@ export default function NewsItemsPage() {
   const [skip, setSkip] = useState(0);
   const [limit] = useState(20);
   const [sourceId, setSourceId] = useState<number | undefined>(undefined);
-  const [newsItemsWithResults, setNewsItemsWithResults] = useState<NewsItem[]>([]);
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -45,32 +44,7 @@ export default function NewsItemsPage() {
 
   const { data: sources } = useGetSourcesQuery();
 
-  // Fetch processing results for all displayed news items
-  useEffect(() => {
-    if (newsItems) {
-      const fetchResults = async () => {
-        const itemsWithResults = await Promise.all(
-          newsItems.map(async (item) => {
-            try {
-              const results = await fetch(
-                `/api/news-items/${item.id}/results`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-                  },
-                }
-              ).then(r => r.json());
-              return { ...item, processing_results: results };
-            } catch {
-              return { ...item, processing_results: [] };
-            }
-          })
-        );
-        setNewsItemsWithResults(itemsWithResults);
-      };
-      fetchResults();
-    }
-  }, [newsItems]);
+  const newsItemsWithResults = newsItems ?? [];
 
   const handleRowClick = (item: NewsItem) => {
     setSelectedItem(item);
