@@ -97,6 +97,17 @@ export interface NewsTaskUpdate {
   settings?: NewsTaskSettings;
 }
 
+export interface NewsTaskPreviewItem {
+  title: string;
+  description: string;
+  decision: number;
+}
+
+export interface NewsTaskPreview {
+  relevant: NewsTaskPreviewItem[];
+  non_relevant: NewsTaskPreviewItem[];
+}
+
 export interface Source {
   id: string;
   user_id: string;

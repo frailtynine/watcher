@@ -57,3 +57,18 @@ class NewsTaskRead(NewsTaskBase):
     sources_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class NewsTaskPreviewItem(BaseModel):
+    title: str
+    description: str
+    decision: float = Field(ge=0, le=1)
+
+
+class NewsTaskPreviewRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+
+class NewsTaskPreviewRead(BaseModel):
+    relevant: list[NewsTaskPreviewItem]
+    non_relevant: list[NewsTaskPreviewItem]

@@ -15,11 +15,13 @@ import {
   HStack,
   Divider,
   Heading,
+  Badge,
   useToast,
   FormErrorMessage,
   useDisclosure,
   Box,
   Text,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useMemo } from 'react';
@@ -27,11 +29,13 @@ import {
   useUpdateNewsTaskMutation,
   useGetTaskSourcesQuery,
   useGetSourcesQuery,
+  usePreviewNewsTaskMutation,
 } from '../../services/api';
 import {
   DEFAULT_TELEGRAM_SUMMARY_PROMPT,
   createDefaultNewsTaskSettings,
   type NewsTask,
+  type NewsTaskPreview,
   type NewsTaskSettings,
 } from '../../types';
 import { SourcesList } from '../sources/SourcesList';
@@ -51,6 +55,8 @@ export const EditNewsTaskModal = ({
   task,
 }: EditNewsTaskModalProps) => {
   const [updateTask, { isLoading }] = useUpdateNewsTaskMutation();
+  const [previewTask, { isLoading: isPreviewLoading }] =
+    usePreviewNewsTaskMutation();
   const { data: associations } = useGetTaskSourcesQuery(task.id);
   const { data: allSources } = useGetSourcesQuery();
   const toast = useToast();
@@ -67,11 +73,13 @@ export const EditNewsTaskModal = ({
     prompt?: string;
     settingsLang?: string;
   }>({});
+  const [preview, setPreview] = useState<NewsTaskPreview | null>(null);
 
   useEffect(() => {
     setName(task.name);
     setPrompt(task.prompt);
     setSettings(task.settings || createDefaultNewsTaskSettings());
+    setPreview(null);
   }, [task]);
 
   const validate = () => {
@@ -136,6 +144,30 @@ export const EditNewsTaskModal = ({
     } catch (error) {
       toast({
         title: 'Failed to update task',
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!prompt.trim()) {
+      setErrors((current) => ({
+        ...current,
+        prompt: 'AI prompt is required to test the task',
+      }));
+      return;
+    }
+
+    setPreview(null);
+    try {
+      setPreview(
+        await previewTask({ taskId: task.id, prompt: prompt.trim() }).unwrap()
+      );
+    } catch {
+      toast({
+        title: 'Failed to test task',
+        description: 'Could not fetch and classify recent RSS items.',
         status: 'error',
         duration: 3000,
       });
@@ -223,6 +255,42 @@ export const EditNewsTaskModal = ({
               <Divider />
 
               <Box>
+                <HStack justify="space-between" mb={4} align="center">
+                  <Box>
+                    <Heading size="sm">Task Test</Heading>
+                    <Text fontSize="sm" color="gray.500">
+                      Classify recent RSS items without saving them.
+                    </Text>
+                  </Box>
+                  <Button
+                    size="sm"
+                    colorScheme="purple"
+                    onClick={handlePreview}
+                    isLoading={isPreviewLoading}
+                  >
+                    Test Task
+                  </Button>
+                </HStack>
+
+                {preview && (
+                  <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+                    <PreviewResults
+                      title="Relevant"
+                      colorScheme="green"
+                      items={preview.relevant}
+                    />
+                    <PreviewResults
+                      title="Not Relevant"
+                      colorScheme="gray"
+                      items={preview.non_relevant}
+                    />
+                  </SimpleGrid>
+                )}
+              </Box>
+
+              <Divider />
+
+              <Box>
                 <Heading size="sm" mb={4}>
                   Telegram Bots
                 </Heading>
@@ -254,3 +322,47 @@ export const EditNewsTaskModal = ({
     </>
   );
 };
+
+function PreviewResults({
+  title,
+  colorScheme,
+  items,
+}: {
+  title: string;
+  colorScheme: string;
+  items: NewsTaskPreview['relevant'];
+}) {
+  return (
+    <Box flex={1} minW={0}>
+      <Heading size="xs" mb={2} color={`${colorScheme}.600`}>
+        {title} ({items.length})
+      </Heading>
+      <VStack align="stretch" spacing={2}>
+        {items.length === 0 ? (
+          <Text fontSize="sm" color="gray.500">No items found</Text>
+        ) : (
+          items.map((item) => (
+            <Box
+              key={`${item.title}-${item.decision}`}
+              p={3}
+              bg="gray.50"
+              borderRadius="md"
+            >
+              <HStack justify="space-between" align="start" mb={1}>
+                <Text fontWeight="medium" fontSize="sm" noOfLines={2}>
+                  {item.title}
+                </Text>
+                <Badge colorScheme={colorScheme} flexShrink={0}>
+                  {(item.decision * 100).toFixed(0)}%
+                </Badge>
+              </HStack>
+              <Text fontSize="xs" color="gray.600" noOfLines={3}>
+                {item.description}
+              </Text>
+            </Box>
+          ))
+        )}
+      </VStack>
+    </Box>
+  );
+}

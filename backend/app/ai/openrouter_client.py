@@ -97,14 +97,16 @@ class OpenRouterClient(BaseAIClient):
             "model": self.JEV_MODEL_NAME,
             "state": {
                 "criteria": prompt,
-                "news_item": {"title": title, "content": content},
+                "item": {"title": title, "content": content},
             },
             "questions": {
                 "relevant": {
                     "type": "noul",
                     "instructions": (
-                        "The news item in `news_item` matches the "
-                        "relevancy criteria in `criteria`."
+                        "Determine whether the item in `item` "
+                        "is relevant to"
+                        " the task according to the relevancy "
+                        "criteria in `criteria`."
                     ),
                 },
             },
