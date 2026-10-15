@@ -13,6 +13,7 @@ class ProcessingResult:
     result: bool
     thinking: str
     tokens_used: int
+    decision: float | None = None
 
 
 class BaseAIClient(ABC):

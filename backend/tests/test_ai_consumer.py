@@ -192,7 +192,10 @@ async def test_save_result_creates_new_record(
         await session.refresh(news_task)
 
         result = ProcessingResult(
-            result=True, thinking="Matches criteria", tokens_used=150
+            result=True,
+            thinking="",
+            tokens_used=0,
+            decision=0.88,
         )
 
         consumer = AIConsumer()
@@ -213,8 +216,8 @@ async def test_save_result_creates_new_record(
 
         assert record.processed is True
         assert record.result is True
-        assert record.ai_response["thinking"] == "Matches criteria"
-        assert record.ai_response["tokens_used"] == 150
+        assert record.ai_response["decision"] == 0.88
+        assert "tokens_used" not in record.ai_response
 
 
 @pytest.mark.anyio

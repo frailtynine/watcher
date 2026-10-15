@@ -77,6 +77,19 @@ class OpenRouterClient(BaseAIClient):
         threshold: float = 0.7,
     ) -> bool:
         """Classify a news item against criteria with the Jev model."""
+        probability = await self.get_news_relevance_decision(
+            title, content, prompt, threshold
+        )
+        return probability >= threshold
+
+    async def get_news_relevance_decision(
+        self,
+        title: str,
+        content: str,
+        prompt: str,
+        threshold: float = 0.7,
+    ) -> float:
+        """Return Jev's relevance probability for a news item."""
         if not 0 <= threshold <= 1:
             raise ValueError("threshold must be between 0 and 1.")
 
@@ -96,8 +109,7 @@ class OpenRouterClient(BaseAIClient):
                 },
             },
         }
-        probability = await self._get_jev_probability(payload, "relevant")
-        return probability >= threshold
+        return await self._get_jev_probability(payload, "relevant")
 
     async def is_duplicate_news_item(
         self,
@@ -173,11 +185,14 @@ class OpenRouterClient(BaseAIClient):
         prompt: str,
     ) -> ProcessingResult:
         """Classify a news item with Jev using BaseAIClient's result shape."""
-        is_relevant = await self.is_news_relevant(title, content, prompt)
+        decision = await self.get_news_relevance_decision(
+            title, content, prompt
+        )
         return ProcessingResult(
-            result=is_relevant,
-            thinking="Jev relevance classification",
+            result=decision >= 0.7,
+            thinking="",
             tokens_used=0,
+            decision=decision,
         )
 
     async def _generate(

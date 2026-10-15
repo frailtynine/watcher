@@ -97,16 +97,16 @@ async def test_is_news_relevant(openrouter_client):
 
 
 async def test_process_news_uses_jev(openrouter_client, monkeypatch):
-    async def fake_is_news_relevant(title, content, prompt):
+    async def fake_get_news_relevance_decision(title, content, prompt):
         assert title == "Iran war update"
         assert content == "Regional effects"
         assert prompt == "Return Iran war news"
-        return True
+        return 0.91
 
     monkeypatch.setattr(
         openrouter_client,
-        "is_news_relevant",
-        fake_is_news_relevant,
+        "get_news_relevance_decision",
+        fake_get_news_relevance_decision,
     )
 
     result = await openrouter_client.process_news(
@@ -117,8 +117,9 @@ async def test_process_news_uses_jev(openrouter_client, monkeypatch):
 
     assert result == ProcessingResult(
         result=True,
-        thinking="Jev relevance classification",
+        thinking="",
         tokens_used=0,
+        decision=0.91,
     )
 
 
