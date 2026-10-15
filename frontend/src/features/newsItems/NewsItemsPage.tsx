@@ -100,7 +100,13 @@ export default function NewsItemsPage() {
 
     const results = item.processing_results
       .filter(r => r.processed && r.result === true)
-      .map(r => r.ai_response?.thinking || 'Match')
+      .map((r) => {
+        const decision = r.ai_response?.decision;
+        if (typeof decision === 'number') {
+          return `Jev decision: ${(decision * 100).toFixed(1)}%`;
+        }
+        return r.ai_response?.thinking || 'Match';
+      })
       .join('; ');
 
     return results || 'No matches';

@@ -453,11 +453,13 @@ class AIConsumer:
         existing = await db.execute(stmt)
         record = existing.scalar_one_or_none()
 
-        ai_response = {
-            "thinking": result.thinking,
-            "tokens_used": result.tokens_used,
-            "processed_at": utcnow_naive().isoformat(),
+        ai_response: dict[str, object] = {
+            "processed_at": utcnow_naive().isoformat()
         }
+        if result.decision is not None:
+            ai_response["decision"] = result.decision
+        elif result.thinking:
+            ai_response["thinking"] = result.thinking
 
         if record:
             # Update existing record

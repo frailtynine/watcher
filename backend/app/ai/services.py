@@ -154,11 +154,11 @@ class TaskResultService:
                 continue
 
             key = (outcome.news_item_id, outcome.task_id)
-            ai_response = {
-                "thinking": result.thinking,
-                "tokens_used": result.tokens_used,
-                "processed_at": now.isoformat(),
-            }
+            ai_response: dict[str, object] = {"processed_at": now.isoformat()}
+            if result.decision is not None:
+                ai_response["decision"] = result.decision
+            elif result.thinking:
+                ai_response["thinking"] = result.thinking
             record = existing_records.get(key)
             if record:
                 record.processed = True
