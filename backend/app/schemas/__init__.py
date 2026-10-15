@@ -1,5 +1,11 @@
 from .user import UserRead, UserCreate, UserUpdate
-from .news_task import NewsTaskRead, NewsTaskCreate, NewsTaskUpdate
+from .news_task import (
+    NewsTaskRead,
+    NewsTaskCreate,
+    NewsTaskUpdate,
+    NewsTaskPreviewRequest,
+    NewsTaskPreviewRead,
+)
 from .source import SourceRead, SourceCreate, SourceUpdate
 from .source_news_task import SourceNewsTaskRead, SourceNewsTaskCreate
 from .news_item import NewsItemRead, NewsItemCreate, NewsItemUpdate
@@ -27,6 +33,8 @@ __all__ = [
     "NewsTaskRead",
     "NewsTaskCreate",
     "NewsTaskUpdate",
+    "NewsTaskPreviewRequest",
+    "NewsTaskPreviewRead",
     "SourceRead",
     "SourceCreate",
     "SourceUpdate",

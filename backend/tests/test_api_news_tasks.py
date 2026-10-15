@@ -1,6 +1,7 @@
 import pytest
+from datetime import datetime, timedelta
 from httpx import AsyncClient
-from app.models import NewsTask
+from app.models import NewsItem, NewsTask, SourceNewsTask
 
 pytestmark = pytest.mark.anyio
 
@@ -189,6 +190,91 @@ async def test_get_news_task_unauthorized(
     """Test getting task requires authentication."""
     response = await client.get(f"/api/news-tasks/{test_news_task.id}")
     assert response.status_code == 401
+
+
+async def test_preview_news_task(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_news_task: NewsTask,
+    test_source,
+    db_session_maker,
+    monkeypatch,
+):
+    """Preview classifies recent attached RSS items without saving them."""
+    async with db_session_maker() as session:
+        session.add(
+            SourceNewsTask(
+                source_id=test_source.id,
+                news_task_id=test_news_task.id,
+            )
+        )
+        await session.commit()
+
+    items = [
+        NewsItem(
+            source_id=test_source.id,
+            title=f"Relevant {index}",
+            content="Relevant description",
+            published_at=datetime.utcnow(),
+        )
+        for index in range(6)
+    ] + [
+        NewsItem(
+            source_id=test_source.id,
+            title=f"Not relevant {index}",
+            content="Not relevant description",
+            published_at=datetime.utcnow(),
+        )
+        for index in range(6)
+    ] + [
+        NewsItem(
+            source_id=test_source.id,
+            title="Old item",
+            content="Old description",
+            published_at=datetime.utcnow() - timedelta(days=2),
+        )
+    ]
+
+    async def fake_fetch(self, source):
+        assert source.id == test_source.id
+        return items
+
+    async def fake_decision(self, title, content, prompt):
+        assert prompt == "Preview criteria"
+        return 0.9 if title.startswith("Relevant") else 0.1
+
+    monkeypatch.setattr("app.api.news_tasks.RSSProducer.fetch", fake_fetch)
+    monkeypatch.setattr(
+        "app.api.news_tasks.OpenRouterClient.get_news_relevance_decision",
+        fake_decision,
+    )
+
+    response = await client.post(
+        f"/api/news-tasks/{test_news_task.id}/preview",
+        headers=auth_headers,
+        json={"prompt": "Preview criteria"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["relevant"]) == 5
+    assert len(data["non_relevant"]) == 5
+    assert data["relevant"][0]["decision"] == 0.9
+    assert data["non_relevant"][0]["decision"] == 0.1
+
+
+async def test_preview_news_task_not_found(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Preview does not expose tasks owned by another user."""
+    response = await client.post(
+        "/api/news-tasks/99999/preview",
+        headers=auth_headers,
+        json={"prompt": "Preview criteria"},
+    )
+
+    assert response.status_code == 404
 
 
 # @pytest.mark.skip(reason="FastCRUD passes timezone-aware datetime for onupdate fields with TIMESTAMP WITHOUT TIME ZONE")

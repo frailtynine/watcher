@@ -1,19 +1,31 @@
+import asyncio
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
+from app.ai.openrouter_client import OpenRouterClient
 from app.db import get_async_session
 from app.crud import (
     news_task_crud,
     telegram_bot_crud,
     telegram_bot_news_task_crud,
 )
-from app.schemas import NewsTaskCreate, NewsTaskRead, NewsTaskUpdate
+from app.schemas import (
+    NewsTaskCreate,
+    NewsTaskPreviewRequest,
+    NewsTaskPreviewRead,
+    NewsTaskRead,
+    NewsTaskUpdate,
+)
 from app.schemas.telegram_bot_news_task import (
     TelegramBotNewsTaskCreate,
     TelegramBotNewsTaskRead,
 )
 from app.api.auth import current_active_user
-from app.models import User, NewsTask, SourceNewsTask
+from app.models import NewsTask, SourceNewsTask, SourceType, User
+from app.producers.rss import RSSProducer
 
 router = APIRouter()
 
@@ -73,6 +85,72 @@ async def list_news_tasks(
             task.sources_count = counts_dict.get(task.id, 0)
 
     return tasks
+
+
+@router.post("/{task_id}/preview", response_model=NewsTaskPreviewRead)
+async def preview_news_task(
+    task_id: int,
+    preview_request: NewsTaskPreviewRequest,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    """Preview how Jev classifies recent RSS items for a news task."""
+    statement = (
+        select(NewsTask)
+        .where(NewsTask.id == task_id, NewsTask.user_id == user.id)
+        .options(selectinload(NewsTask.sources))
+    )
+    result = await db.execute(statement)
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="News task not found")
+
+    sources = [
+        source
+        for source in task.sources
+        if source.active and source.type == SourceType.RSS
+    ]
+    if not sources:
+        return NewsTaskPreviewRead(relevant=[], non_relevant=[])
+
+    producer = RSSProducer()
+    fetched_by_source = await asyncio.gather(
+        *(producer.fetch(source) for source in sources)
+    )
+    cutoff = datetime.utcnow() - timedelta(days=1)
+    items = [
+        item
+        for source_items in fetched_by_source
+        for item in source_items
+        if item.published_at >= cutoff
+    ]
+
+    client = OpenRouterClient()
+    relevant = []
+    non_relevant = []
+    for item in items:
+        decision = await client.get_news_relevance_decision(
+            title=item.title,
+            content=item.content,
+            prompt=preview_request.prompt,
+        )
+        preview_item = {
+            "title": item.title,
+            "description": item.content,
+            "decision": decision,
+        }
+        if decision >= 0.7 and len(relevant) < 5:
+            relevant.append(preview_item)
+        elif decision < 0.7 and len(non_relevant) < 5:
+            non_relevant.append(preview_item)
+
+        if len(relevant) == 5 and len(non_relevant) == 5:
+            break
+
+    return NewsTaskPreviewRead(
+        relevant=relevant,
+        non_relevant=non_relevant,
+    )
 
 
 @router.get("/{task_id}", response_model=NewsTaskRead)

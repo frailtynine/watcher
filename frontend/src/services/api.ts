@@ -3,6 +3,7 @@ import type {
   NewsTask,
   NewsTaskCreate,
   NewsTaskUpdate,
+  NewsTaskPreview,
   Source,
   SourceCreate,
   SourceUpdate,
@@ -157,6 +158,16 @@ export const api = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: ['NewsTasks'],
+    }),
+    previewNewsTask: builder.mutation<
+      NewsTaskPreview,
+      { taskId: string; prompt: string }
+    >({
+      query: ({ taskId, prompt }) => ({
+        url: `/news-tasks/${taskId}/preview`,
+        method: 'POST',
+        body: { prompt },
+      }),
     }),
     getTaskTelegramBots: builder.query<TelegramBotTaskAssociation[], string>({
       query: (taskId) => `/news-tasks/${taskId}/telegram-bots`,
@@ -324,6 +335,7 @@ export const {
   useCreateNewsTaskMutation,
   useUpdateNewsTaskMutation,
   useDeleteNewsTaskMutation,
+  usePreviewNewsTaskMutation,
   useGetTaskTelegramBotsQuery,
   useAssociateTelegramBotWithTaskMutation,
   useDisassociateTelegramBotFromTaskMutation,
