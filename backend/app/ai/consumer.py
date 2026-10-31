@@ -335,6 +335,7 @@ class AIConsumer:
                 title=news_item.title,
                 content=news_item.content,
                 prompt=task.prompt,
+                threshold=self._get_task_relevance_threshold(task),
             )
 
             await self._save_result(db, news_item, task, result)
@@ -355,6 +356,14 @@ class AIConsumer:
                 exc_info=True,
             )
             return None
+
+    @staticmethod
+    def _get_task_relevance_threshold(task: NewsTask) -> float:
+        settings = task.settings if isinstance(task.settings, dict) else {}
+        threshold = settings.get("treshold", 0.7)
+        if isinstance(threshold, (int, float)) and 0 <= threshold <= 1:
+            return float(threshold)
+        return 0.7
 
     async def _get_active_tasks(
         self, db: AsyncSession, user_id: int

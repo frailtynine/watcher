@@ -28,6 +28,7 @@ class BaseAIClient(ABC):
         title: str,
         content: str,
         prompt: str,
+        threshold: float = 0.7,
     ) -> ProcessingResult:
         """Process a news item against a prompt.
 
@@ -35,6 +36,7 @@ class BaseAIClient(ABC):
             title: News item title
             content: News item content
             prompt: User-defined filtering prompt
+            threshold: Minimum relevance decision required for a match
 
         Returns:
             ProcessingResult with analysis outcome

@@ -126,6 +126,7 @@ async def preview_news_task(
     ]
 
     client = OpenRouterClient()
+    threshold = preview_request.treshold
     relevant = []
     non_relevant = []
     for item in items:
@@ -133,15 +134,16 @@ async def preview_news_task(
             title=item.title,
             content=item.content,
             prompt=preview_request.prompt,
+            threshold=float(threshold),
         )
         preview_item = {
             "title": item.title,
             "description": item.content,
             "decision": decision,
         }
-        if decision >= 0.7 and len(relevant) < 5:
+        if decision >= threshold and len(relevant) < 5:
             relevant.append(preview_item)
-        elif decision < 0.7 and len(non_relevant) < 5:
+        elif decision < threshold and len(non_relevant) < 5:
             non_relevant.append(preview_item)
 
         if len(relevant) == 5 and len(non_relevant) == 5:

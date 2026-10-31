@@ -72,7 +72,12 @@ class SummaryService:
         language: str,
     ) -> str:
         """Summarize a news item with source-aware strategy and link output."""
-        prompt_with_language = f"{prompt}\n\nSummarize in {language} language"
+        prompt_with_language = (
+            f"{prompt}\n\nSummarize in {language} language. "
+            "If text seems incomplete or returns error data, " 
+            "work with just the title and short summary of the content." \
+            "Do not include any reasoning."
+        )
 
         summary_text: str | None = None
         article_url = news_item.url

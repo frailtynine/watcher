@@ -22,6 +22,7 @@ class DeliverySettings(BaseModel):
 
 
 class NewsTaskSettings(BaseModel):
+    treshold: float = Field(default=0.7, ge=0, le=1)
     delivery: DeliverySettings = Field(default_factory=DeliverySettings)
 
 
@@ -67,6 +68,7 @@ class NewsTaskPreviewItem(BaseModel):
 
 class NewsTaskPreviewRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
+    treshold: float = Field(ge=0, le=1)
 
 
 class NewsTaskPreviewRead(BaseModel):
