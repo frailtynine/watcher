@@ -24,6 +24,7 @@ async def test_create_news_task_success(
     assert data["name"] == "AI News Summary"
     assert data["prompt"] == "Summarize the latest AI developments"
     assert data["settings"]["delivery"]["telegram"]["summary"] is False
+    assert data["settings"]["treshold"] == 0.7
     assert data["settings"]["delivery"]["telegram"]["lang"] == "en"
     assert (
         data["settings"]["delivery"]["telegram"]["prompt"]
@@ -44,6 +45,7 @@ async def test_create_news_task_with_custom_settings(
             "prompt": "Summarize fintech updates",
             "active": True,
             "settings": {
+                "treshold": 0.85,
                 "delivery": {
                     "telegram": {
                         "summary": True,
@@ -57,6 +59,7 @@ async def test_create_news_task_with_custom_settings(
     assert response.status_code == 201
     data = response.json()
     assert data["settings"]["delivery"]["telegram"]["summary"] is True
+    assert data["settings"]["treshold"] == 0.85
     assert data["settings"]["delivery"]["telegram"]["lang"] == "de"
     assert (
         data["settings"]["delivery"]["telegram"]["prompt"]
@@ -239,8 +242,9 @@ async def test_preview_news_task(
         assert source.id == test_source.id
         return items
 
-    async def fake_decision(self, title, content, prompt):
+    async def fake_decision(self, title, content, prompt, threshold):
         assert prompt == "Preview criteria"
+        assert threshold == 0.6
         return 0.9 if title.startswith("Relevant") else 0.1
 
     monkeypatch.setattr("app.api.news_tasks.RSSProducer.fetch", fake_fetch)
@@ -252,7 +256,7 @@ async def test_preview_news_task(
     response = await client.post(
         f"/api/news-tasks/{test_news_task.id}/preview",
         headers=auth_headers,
-        json={"prompt": "Preview criteria"},
+        json={"prompt": "Preview criteria", "treshold": 0.6},
     )
 
     assert response.status_code == 200
@@ -271,10 +275,28 @@ async def test_preview_news_task_not_found(
     response = await client.post(
         "/api/news-tasks/99999/preview",
         headers=auth_headers,
-        json={"prompt": "Preview criteria"},
+        json={"prompt": "Preview criteria", "treshold": 0.6},
     )
 
     assert response.status_code == 404
+
+
+async def test_create_news_task_invalid_treshold(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Task treshold must be a relevance decision between zero and one."""
+    response = await client.post(
+        "/api/news-tasks/",
+        headers=auth_headers,
+        json={
+            "name": "Invalid threshold",
+            "prompt": "Classify recent news",
+            "settings": {"treshold": 1.1},
+        },
+    )
+
+    assert response.status_code == 422
 
 
 # @pytest.mark.skip(reason="FastCRUD passes timezone-aware datetime for onupdate fields with TIMESTAMP WITHOUT TIME ZONE")

@@ -19,11 +19,13 @@ class DeliverySettings(TypedDict):
 
 
 class NewsTaskSettings(TypedDict):
+    treshold: float
     delivery: DeliverySettings
 
 
 def default_news_task_settings() -> NewsTaskSettings:
     return {
+        "treshold": 0.7,
         "delivery": {
             "telegram": {
                 "summary": False,

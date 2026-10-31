@@ -14,6 +14,10 @@ import {
   VStack,
   useToast,
   FormErrorMessage,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { useCreateNewsTaskMutation } from '../../services/api';
@@ -85,6 +89,7 @@ export const CreateNewsTaskModal = ({
         prompt: prompt.trim(),
         active: true,
         settings: {
+          treshold: settings.treshold,
           delivery: {
             telegram: {
               summary: settings.delivery.telegram.summary,
@@ -153,6 +158,26 @@ export const CreateNewsTaskModal = ({
                 rows={4}
               />
               <FormErrorMessage>{errors.prompt}</FormErrorMessage>
+            </FormControl>
+
+            <FormControl>
+              <FormLabel>
+                Relevance treshold: {settings.treshold.toFixed(2)}
+              </FormLabel>
+              <Slider
+                value={settings.treshold}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(treshold) =>
+                  setSettings((current) => ({ ...current, treshold }))
+                }
+              >
+                <SliderTrack>
+                  <SliderFilledTrack />
+                </SliderTrack>
+                <SliderThumb />
+              </Slider>
             </FormControl>
 
             <FormControl isInvalid={!!errors.settingsLang} isRequired>

@@ -49,6 +49,7 @@ export interface TelegramBotTaskAssociation {
 }
 
 export interface NewsTaskSettings {
+  treshold: number;
   delivery: {
     telegram: {
       summary: boolean;
@@ -62,6 +63,7 @@ export const DEFAULT_TELEGRAM_SUMMARY_PROMPT =
   'Retell the news article in a neutral way in a short form, no more than three sentences';
 
 export const createDefaultNewsTaskSettings = (): NewsTaskSettings => ({
+  treshold: 0.7,
   delivery: {
     telegram: {
       summary: false,

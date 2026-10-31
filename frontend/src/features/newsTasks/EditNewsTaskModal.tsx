@@ -22,6 +22,10 @@ import {
   Box,
   Text,
   SimpleGrid,
+  Slider,
+  SliderTrack,
+  SliderFilledTrack,
+  SliderThumb,
 } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
 import { useState, useEffect, useMemo } from 'react';
@@ -121,6 +125,7 @@ export const EditNewsTaskModal = ({
           name: name.trim(),
           prompt: prompt.trim(),
           settings: {
+            treshold: settings.treshold,
             delivery: {
               telegram: {
                 summary: settings.delivery.telegram.summary,
@@ -162,7 +167,11 @@ export const EditNewsTaskModal = ({
     setPreview(null);
     try {
       setPreview(
-        await previewTask({ taskId: task.id, prompt: prompt.trim() }).unwrap()
+        await previewTask({
+          taskId: task.id,
+          prompt: prompt.trim(),
+          treshold: settings.treshold,
+        }).unwrap()
       );
     } catch {
       toast({
@@ -207,6 +216,26 @@ export const EditNewsTaskModal = ({
                     rows={4}
                   />
                   <FormErrorMessage>{errors.prompt}</FormErrorMessage>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>
+                    Relevance treshold: {settings.treshold.toFixed(2)}
+                  </FormLabel>
+                  <Slider
+                    value={settings.treshold}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onChange={(treshold) =>
+                      setSettings((current) => ({ ...current, treshold }))
+                    }
+                  >
+                    <SliderTrack>
+                      <SliderFilledTrack />
+                    </SliderTrack>
+                    <SliderThumb />
+                  </Slider>
                 </FormControl>
 
                 <FormControl isInvalid={!!errors.settingsLang} isRequired>

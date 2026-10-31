@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class OpenRouterClient(BaseAIClient):
     """Client for OpenRouter's chat and model APIs."""
 
-    MODEL_NAME = "anthropic/claude-haiku-5.5"
+    MODEL_NAME = "openai/gpt-6.1-sol"
     JEV_MODEL_NAME = "typesafe/jev-1.13"
     JEV_DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
 
@@ -117,9 +117,9 @@ class OpenRouterClient(BaseAIClient):
         self,
         title: str,
         content: str,
-    recent_headlines: list[str],
-    threshold: float = 0.7,
-) -> bool:
+        recent_headlines: list[str],
+        threshold: float = 0.7,
+    ) -> bool:
         """Return whether Jev considers an item the same event as a headline.
 
         The comparison is against the supplied recent headlines.
@@ -185,13 +185,14 @@ class OpenRouterClient(BaseAIClient):
         title: str,
         content: str,
         prompt: str,
+        threshold: float = 0.7,
     ) -> ProcessingResult:
         """Classify a news item with Jev using BaseAIClient's result shape."""
         decision = await self.get_news_relevance_decision(
-            title, content, prompt
+            title, content, prompt, threshold
         )
         return ProcessingResult(
-            result=decision >= 0.7,
+            result=decision >= threshold,
             thinking="",
             tokens_used=0,
             decision=decision,

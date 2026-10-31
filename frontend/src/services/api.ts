@@ -161,12 +161,12 @@ export const api = createApi({
     }),
     previewNewsTask: builder.mutation<
       NewsTaskPreview,
-      { taskId: string; prompt: string }
+      { taskId: string; prompt: string; treshold: number }
     >({
-      query: ({ taskId, prompt }) => ({
+      query: ({ taskId, prompt, treshold }) => ({
         url: `/news-tasks/${taskId}/preview`,
         method: 'POST',
-        body: { prompt },
+        body: { prompt, treshold },
       }),
     }),
     getTaskTelegramBots: builder.query<TelegramBotTaskAssociation[], string>({
