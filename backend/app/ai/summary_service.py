@@ -74,8 +74,8 @@ class SummaryService:
         """Summarize a news item with source-aware strategy and link output."""
         prompt_with_language = (
             f"{prompt}\n\nSummarize in {language} language. "
-            "If text seems incomplete or returns error data, " 
-            "work with just the title and short summary of the content." \
+            "If text seems incomplete or returns error data, "
+            "work with just the title and short summary of the content."
             "Do not include any reasoning."
         )
 
