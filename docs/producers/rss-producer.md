@@ -13,8 +13,8 @@
 
 ## Fetch behavior
 
-- uses `feedparser.parse`
-- wraps parsing in `run_in_executor()` because `feedparser` is synchronous
+- downloads feeds with cancellable HTTP requests, bounded by `RSS_FETCH_TIMEOUT_SECONDS` (default 30 seconds)
+- parses downloaded content with `feedparser.parse` in a worker thread
 - logs `bozo` parsing warnings but still attempts to process entries
 
 ## Entry parsing rules
@@ -42,6 +42,11 @@ Entries missing any of those are skipped.
 
 - `source_type=SourceType.RSS`
 - `concurrency_limit=settings.RSS_FETCH_CONCURRENCY`
+
+Only one RSS job runs at a time. Runs exceeding `RSS_JOB_TIMEOUT_SECONDS`
+(default 300 seconds) are cancelled so a later scheduled run can proceed.
+An interval may still be skipped if a healthy run takes longer than the
+configured interval. Cancellation cannot stop a parsing thread already running.
 
 ## Tests
 

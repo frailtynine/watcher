@@ -2,15 +2,16 @@
 
 from datetime import datetime, timezone
 from typing import List, Optional
+import asyncio
 import feedparser
+import httpx
 from email.utils import parsedate_to_datetime
 
+from app.core import settings
 from app.models.source import Source, SourceType
 from app.models.news_item import NewsItem
 from app.producers.utils import clear_utm_params
 from .base import BaseProducer
-
-RSS_CONCURRENCTY_LIMIT = 100
 
 
 class RSSProducer(BaseProducer):
@@ -75,9 +76,19 @@ class RSSProducer(BaseProducer):
         Returns:
             Parsed feed dictionary
         """
-        import asyncio
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, feedparser.parse, url)
+        # Keep network I/O cancellable; cancelling a thread running
+        # feedparser's URL fetch would not stop the underlying request.
+        async with httpx.AsyncClient(
+            timeout=settings.RSS_FETCH_TIMEOUT_SECONDS, follow_redirects=True
+        ) as client:
+            async with asyncio.timeout(settings.RSS_FETCH_TIMEOUT_SECONDS):
+                response = await client.get(url)
+                response.raise_for_status()
+        headers = dict(response.headers)
+        headers.setdefault("content-location", str(response.url))
+        return await asyncio.to_thread(
+            feedparser.parse, response.content, response_headers=headers
+        )
 
     def _parse_entry(
         self, source: Source, entry: dict
@@ -197,5 +208,5 @@ async def rss_producer_job():
 
     await producer.run_job(
         source_type=SourceType.RSS,
-        concurrency_limit=RSS_CONCURRENCTY_LIMIT
+        concurrency_limit=settings.RSS_FETCH_CONCURRENCY
     )

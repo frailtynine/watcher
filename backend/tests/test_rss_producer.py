@@ -1,12 +1,61 @@
 """Tests for RSS producer."""
 
+import asyncio
+import httpx
 import pytest
 from datetime import datetime
 from uuid import uuid4
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from app.producers.rss import RSSProducer
 from app.models.source import Source, SourceType
+
+
+@pytest.mark.asyncio
+async def test_parse_feed_fetches_and_parses_content(monkeypatch):
+    transport = httpx.MockTransport(lambda request: httpx.Response(
+        200,
+        headers={"content-type": "application/rss+xml"},
+        content=b"<rss><channel><title>Test</title></channel></rss>",
+    ))
+    client = httpx.AsyncClient(transport=transport)
+    monkeypatch.setattr("app.producers.rss.httpx.AsyncClient", lambda **kw: client)
+
+    feed = await RSSProducer()._parse_feed("https://example.com/feed")
+
+    assert feed.feed.title == "Test"
+
+
+@pytest.mark.asyncio
+async def test_feed_request_has_total_timeout(monkeypatch, rss_source):
+    async def stalled(request):
+        await asyncio.Event().wait()
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(stalled))
+    monkeypatch.setattr("app.producers.rss.httpx.AsyncClient", lambda **kw: client)
+    monkeypatch.setattr("app.producers.rss.settings.RSS_FETCH_TIMEOUT_SECONDS", 0.01)
+
+    assert await RSSProducer().fetch(rss_source) == []
+
+
+@pytest.mark.asyncio
+async def test_rss_job_timeout_cancels_stalled_run(monkeypatch, caplog):
+    from app.main import run_rss_producer_with_timeout
+
+    cancelled = asyncio.Event()
+
+    async def stalled_job():
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+
+    monkeypatch.setattr("app.main.rss_producer_job", stalled_job)
+    monkeypatch.setattr("app.main.settings.RSS_JOB_TIMEOUT_SECONDS", 0.01)
+    await run_rss_producer_with_timeout()
+
+    assert cancelled.is_set()
+    assert "was cancelled" in caplog.text
 
 
 @pytest.fixture
@@ -77,7 +126,7 @@ async def test_rss_producer_fetch_success(
     """Test successful RSS feed fetching."""
     producer = RSSProducer()
 
-    with patch("feedparser.parse", return_value=mock_feed_data):
+    with patch.object(producer, "_parse_feed", new_callable=AsyncMock, return_value=mock_feed_data):
         items = await producer.fetch(rss_source)
 
     # Should get 2 items (3 others missing required fields)
@@ -119,7 +168,7 @@ async def test_rss_producer_handles_bozo_feed(mock_session, rss_source):
         ],
     }
 
-    with patch("feedparser.parse", return_value=bozo_feed):
+    with patch.object(producer, "_parse_feed", new_callable=AsyncMock, return_value=bozo_feed):
         items = await producer.fetch(rss_source)
 
     # Should still process entries despite bozo flag
@@ -134,7 +183,7 @@ async def test_rss_producer_handles_fetch_error(
     """Test error handling during feed fetching."""
     producer = RSSProducer()
 
-    with patch("feedparser.parse", side_effect=Exception("Network error")):
+    with patch.object(producer, "_parse_feed", new_callable=AsyncMock, side_effect=Exception("Network error")):
         items = await producer.fetch(rss_source)
 
     # Should return empty list on error
@@ -164,7 +213,7 @@ async def test_rss_producer_date_parsing(mock_session, rss_source):
         ],
     }
 
-    with patch("feedparser.parse", return_value=feed_with_dates):
+    with patch.object(producer, "_parse_feed", new_callable=AsyncMock, return_value=feed_with_dates):
         items = await producer.fetch(rss_source)
 
     assert len(items) == 2
@@ -199,7 +248,7 @@ async def test_rss_producer_required_fields(mock_session, rss_source):
         ],
     }
 
-    with patch("feedparser.parse", return_value=feed):
+    with patch.object(producer, "_parse_feed", new_callable=AsyncMock, return_value=feed):
         items = await producer.fetch(rss_source)
 
     # Only the first entry has all required fields

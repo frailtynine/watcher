@@ -1,5 +1,6 @@
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -14,7 +15,9 @@ class Settings(BaseSettings):
 
     # RSS Producer Job Settings
     RSS_FETCH_INTERVAL_MINUTES: int = 1
-    RSS_FETCH_CONCURRENCY: int = 50
+    RSS_FETCH_CONCURRENCY: int = Field(default=50, gt=0)
+    RSS_FETCH_TIMEOUT_SECONDS: float = Field(default=30, gt=0)
+    RSS_JOB_TIMEOUT_SECONDS: float = Field(default=300, gt=0)
     OPEN_ROUTER_API_KEY: str = ""
     ENCRYPTION_KEY: str
 
