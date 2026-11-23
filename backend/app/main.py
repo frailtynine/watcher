@@ -26,6 +26,18 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+async def run_rss_producer_with_timeout():
+    """Release the scheduler slot if an RSS run takes too long."""
+    try:
+        async with asyncio.timeout(settings.RSS_JOB_TIMEOUT_SECONDS):
+            await rss_producer_job()
+    except TimeoutError:
+        logger.error(
+            "RSS producer job exceeded %s seconds and was cancelled",
+            settings.RSS_JOB_TIMEOUT_SECONDS,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -35,7 +47,7 @@ async def lifespan(app: FastAPI):
 
     # Schedule RSS producer job
     scheduler.add_job(
-        rss_producer_job,
+        run_rss_producer_with_timeout,
         trigger=IntervalTrigger(minutes=settings.RSS_FETCH_INTERVAL_MINUTES),
         id="rss_producer",
         name="RSS Feed Producer",
@@ -52,7 +64,7 @@ async def lifespan(app: FastAPI):
     )
     telegram_manager_task = asyncio.create_task(
         telegram_manager_job(
-            check_interval_seconds=settings.TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS
+            check_interval_seconds=settings.TELEGRAM_MANAGER_CHECK_INTERVAL_SECONDS  # noqa: E501
         )
     )
     app.state.telegram_manager_task = telegram_manager_task
